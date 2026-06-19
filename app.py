@@ -13,7 +13,7 @@ def gerar_doc(dados):
             if k in p.text:
                 p.text = p.text.replace(k, v)
 
-    nome = f"{dados['LOCAL']}_{datetime.now().strftime('%d%m')}.docx"
+    nome = f"{dados['{{LOCAL}}']}_{datetime.now().strftime('%d%m')}.docx"
     caminho = os.path.join("temp", nome)
 
     os.makedirs("temp", exist_ok=True)
@@ -44,7 +44,4 @@ def gerar():
 
 
 if __name__ == "__main__":
-<<<<<<< HEAD
-    app.run(host="0.0.0.0", port=10000)
-=======
     app.run(host="0.0.0.0", port=10000)
