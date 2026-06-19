@@ -7,8 +7,10 @@ from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from PIL import Image
+from flask import Flask
 import os, sys
 import win32com.client
+
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
