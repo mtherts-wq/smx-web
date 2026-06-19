@@ -1,47 +1,38 @@
-from flask import Flask, render_template, request, send_file
-from docx import Document
-from datetime import datetime
-import os
-
-app = Flask(__name__)
-
 def gerar_doc(dados):
     doc = Document("MODELO_RAT.docx")
 
+    # ✅ PARÁGRAFOS
     for p in doc.paragraphs:
-        for k, v in dados.items():
-            if k in p.text:
-                p.text = p.text.replace(k, v)
+        texto = "".join(run.text for run in p.runs)
 
-    nome = f"{dados['{{LOCAL}}']}_{datetime.now().strftime('%d%m')}.docx"
+        if "{{" in texto:
+            for k, v in dados.items():
+                texto = texto.replace(k, v)
+
+            p.clear()
+            run = p.add_run(texto)
+
+    # ✅ TABELAS (SEM PERDER FORMATAÇÃO)
+    for tabela in doc.tables:
+        for row in tabela.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+
+                    texto = "".join(run.text for run in p.runs)
+
+                    if "{{" in texto:
+                        for k, v in dados.items():
+                            texto = texto.replace(k, v)
+
+                        p.clear()
+                        run = p.add_run(texto)
+
+    # ✅ NOME LIMPO
+    nome = f"{dados['LOCAL']}_{datetime.now().strftime('%d%m')}.docx"
+
     caminho = os.path.join("temp", nome)
-
     os.makedirs("temp", exist_ok=True)
 
     doc.save(caminho)
+
     return caminho
-
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-
-@app.route("/gerar", methods=["POST"])
-def gerar():
-    form = request.form
-
-    dados = {
-        "{{PROTOCOLO}}": form.get("protocolo"),
-        "{{TITULO}}": form.get("titulo"),
-        "{{LOCAL}}": form.get("local"),
-        "{{DESCRICAO}}": form.get("descricao")
-    }
-
-    caminho = gerar_doc(dados)
-
-    return send_file(caminho, as_attachment=True)
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
