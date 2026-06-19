@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMX - Gerador</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background-color: #1b1b1b;
+    color: white;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    width: 400px;
+    padding: 20px;
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+label {
+    margin-top: 10px;
+    display: block;
+}
+
+input, textarea, select {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    border-radius: 8px;
+    border: 1px solid #555;
+    background-color: #2b2b2b;
+    color: white;
+}
+
+textarea {
+    height: 100px;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background-color: #2f6fa5;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #4a90d6;
+}
+
+.reset {
+    width: 100%;
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>SMX - Gerador de Chamado</h2>
+
+<form action="/gerar" method="post" enctype="multipart/form-data">
+
+<label>Protocolo</label>
+<input name="protocolo">
+
+<label>Título</label>
+<input name="titulo">
+
+<label>Atendente SMX</label>
+<input name="atendente">
+
+<label>Loja</label>
+<select name="loja">
+    <option>ZARA</option>
+    <option>VIVARA</option>
+    <option>DALGAS Escritório</option>
+    <option>DALGAS G7</option>
+    <option>Clinica CLIMAR</option>
+</select>
+
+<label>Local</label>
+<input name="local">
+
+<label>Técnico</label>
+<input name="tecnico">
+
+<label>Data</label>
+<input type="date" name="data">
+
+<label>Hora início</label>
+<input name="inicio" placeholder="08:00">
+
+<label>Hora fim</label>
+<input name="fim" placeholder="09:00">
+
+<label>Gerente</label>
+<input name="gerente">
+
+<label>Descrição</label>
+<textarea name="descricao"></textarea>
+
+<label>Fotos</label>
+<input type="file" name="fotos" multiple>
+
+<div class="row">
+    <button type="button" onclick="alert('Upload automático')">Fotos</button>
+    <button type="submit">Gerar</button>
+    <button type="button" onclick="alert('PDF gerado após DOCX')">Abrir PDF</button>
+</div>
+
+<button type="reset" class="reset">Reset</button>
+
+</form>
+
+</div>
+
+</body>
+</html>
