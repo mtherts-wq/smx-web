@@ -94,9 +94,9 @@ function validar() {
 
 <div class="container">
 
-<h2>SMX - Gerador de Chamado</h2>
+<h2>SMX - Gerador de RAT</h2>
 
-<!-- ✅ FORM CORRETO -->
+<!-- ✅ FORM CORRETO (ISSO RESOLVE OS BOTÕES) -->
 <form action="/gerar" method="post" enctype="multipart/form-data" onsubmit="return validar()">
 
 <label>Protocolo</label>
@@ -141,10 +141,11 @@ function validar() {
 <label>Fotos</label>
 <input type="file" name="fotos" multiple>
 
-<!-- ✅ BOTÕES COMPLETOS -->
+<!-- ✅ LINHA 1 DE BOTÕES -->
 <div class="row">
     <button type="submit">Gerar</button>
-    <button type="button" onclick="window.location.href='/excel'et</button>
+    <button type="button" onclick="ick="alert('PDF disponível na próxima versão')">Abrir PDF</button>
+    <button type="reset">Reset</button>
 </div>
 
 </form>
