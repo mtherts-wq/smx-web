@@ -7,33 +7,39 @@
 
 <style>
 body {
-    margin: 0;
-    font-family: Arial;
-    background: #121212;
-    color: white;
-    display: flex;
-    justify-content: center;
+    background:#121212;
+    color:white;
+    font-family:Arial;
+    display:flex;
+    justify-content:center;
 }
 
 .container {
-    width: 420px;
-    padding: 20px;
+    width:420px;
+    padding:20px;
 }
 
-label { display:block; margin-top:10px; }
+h2 {
+    text-align:center;
+}
 
+/* Campos */
 input, textarea, select {
-    width: 100%;
-    padding: 10px;
+    width:100%;
+    padding:10px;
     margin-top:5px;
-    border-radius:8px;
+    margin-bottom:8px;
     background:#2a2a2a;
     color:white;
+    border-radius:8px;
     border:1px solid #444;
 }
 
-textarea { height:100px; }
+textarea {
+    height:100px;
+}
 
+/* Botões padrão */
 .row {
     display:flex;
     gap:10px;
@@ -47,26 +53,79 @@ button {
     border-radius:8px;
     background:#2f6fa5;
     color:white;
+    cursor:pointer;
+}
+
+button:hover {
+    background:#4a90d6;
+}
+
+/* ✅ Modal corrigido */
+.modal {
+    display:none;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,0.7);
+    justify-content:center;
+    align-items:center;
+}
+
+.modal-box {
+    background:#222;
+    padding:20px;
+    border-radius:12px;
+    width:300px;
+    text-align:center;
+}
+
+.modal-buttons {
+    display:flex;
+    gap:10px;
+    margin-top:15px;
 }
 </style>
 
 <script>
+// ✅ validação correta
 function validar(){
     let i=document.querySelector("[name=inicio]").value;
     let f=document.querySelector("[name=fim]").value;
 
-    function m(t){
-        let [h,mi]=t.split(":");
-        return h*60 + parseInt(mi);
+    function toMin(t){
+        let [h,m]=t.split(":");
+        return h*60 + parseInt(m);
     }
 
-    if(!i || !f || m(f)<=m(i)){
+    if(!i || !f || toMin(f) <= toMin(i)){
         alert("Hora fim deve ser maior!");
         return false;
     }
     return true;
 }
+
+// ✅ modal
+function abrirModal(){
+    document.getElementById("modal").style.display="flex";
+}
+
+function fecharModal(){
+    document.getElementById("modal").style.display="none";
+}
+
+// ✅ gerar excel
+function gerarExcel(){
+    let mes = document.getElementById("mes").value;
+
+    if(!mes){
+        alert("Selecione o mês!");
+        return;
+    }
+
+    window.location.href="/excel?mes="+mes;
+}
 </script>
+
 </head>
 
 <body>
@@ -84,6 +143,9 @@ function validar(){
 <select name="loja">
 <option>ZARA</option>
 <option>VIVARA</option>
+<option>DALGAS G7</option>
+<option>DALGAS Escritório</option>
+<option>Clinica CLIMAR</option>
 </select>
 
 <input name="local" placeholder="Local">
@@ -99,14 +161,40 @@ function validar(){
 
 <input type="file" name="fotos" multiple>
 
-<!-- ✅ BOTÕES -->
+<!-- ✅ BOTÕES PRINCIPAIS -->
 <div class="row">
-<button type="submit">Gerar</button>
-<button type="button" onclick="window.location.href='/excel'"button">Abrir PDF</button>
-<button type="reset">Reset</button>
+    <button type="submit">Gerar</button>
+    <button type="button" onclick="abrirModal()">Relatório Mês</button>
+</div>
+
+<!-- ✅ BOTÕES SECUNDÁRIOS -->
+<div class="row">
+    <button type="button"
+        onclick="alert('PDF precisa backend, te explico abaixo')">
+        Abrir PDF
+    </button>
+    <button type="reset">Reset</button>
 </div>
 
 </form>
+
+<!-- ✅ MODAL CORRIGIDO -->
+<div id="modal" class="modal">
+
+    <div class="modal-box">
+
+        <h3>Selecionar Mês</h3>
+
+        <input type="month" id="mes">
+
+        <div class="modal-buttons">
+            <button onclick="gerarExcel()">Gerar</button>
+            <button onclick="fecharModal()">Cancelar</button>
+        </div>
+
+    </div>
+
+</div>
 
 </div>
 

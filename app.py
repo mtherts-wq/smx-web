@@ -11,27 +11,32 @@ app = Flask(__name__)
 # CALCULO TEMPO
 # ========================
 def calcular_tempo(inicio, fim):
-    t1 = datetime.strptime(inicio, "%H:%M")
-    t2 = datetime.strptime(fim, "%H:%M")
-    diff = t2 - t1
-    h = diff.seconds // 3600
-    m = (diff.seconds % 3600) // 60
-    return f"{h:02}:{m:02}"
+    try:
+        t1 = datetime.strptime(inicio, "%H:%M")
+        t2 = datetime.strptime(fim, "%H:%M")
+        diff = t2 - t1
+
+        horas = diff.seconds // 3600
+        minutos = (diff.seconds % 3600) // 60
+
+        return f"{horas:02}:{minutos:02}"
+    except:
+        return "00:00"
 
 # ========================
-# HISTÓRICO EXCEL
+# SALVAR HISTORICO
 # ========================
 def salvar_historico(dados):
     arquivo = "historico.xlsx"
 
     registro = {
-        "Data": dados["{{DATA}}"],
-        "Título": dados["{{TITULO}}"],
-        "Loja": dados["{{LOJA}}"],
-        "Atendente": dados["{{ATENDENTE}}"],
-        "Local": dados["{{LOCAL}}"],
-        "Tempo": dados["{{TEMPO}}"],
-        "Gerente": dados["{{GERENTE}}"]
+        "Data": dados.get("{{DATA}}", ""),
+        "Título": dados.get("{{TITULO}}", ""),
+        "Loja": dados.get("{{LOJA}}", ""),
+        "Atendente": dados.get("{{ATENDENTE}}", ""),
+        "Local": dados.get("{{LOCAL}}", ""),
+        "Tempo": dados.get("{{TEMPO}}", ""),
+        "Gerente": dados.get("{{GERENTE}}", "")
     }
 
     df_new = pd.DataFrame([registro])
@@ -45,36 +50,46 @@ def salvar_historico(dados):
     df.to_excel(arquivo, index=False)
 
 # ========================
-# DOCX
+# GERAR DOCX
 # ========================
 def gerar_doc(dados, fotos):
     doc = Document("MODELO_RAT.docx")
 
+    # TEXTO NORMAL
     for p in doc.paragraphs:
         texto = "".join(run.text for run in p.runs)
+
         if "{{" in texto:
             for k, v in dados.items():
-                texto = texto.replace(k, v)
+                texto = texto.replace(k, v if v else "")
+
             p.clear()
             p.add_run(texto)
 
-    for t in doc.tables:
-        for r in t.rows:
-            for c in r.cells:
-                for p in c.paragraphs:
+    # TABELAS
+    for tabela in doc.tables:
+        for row in tabela.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+
                     texto = "".join(run.text for run in p.runs)
+
                     if "{{" in texto:
                         for k, v in dados.items():
-                            texto = texto.replace(k, v)
+                            texto = texto.replace(k, v if v else "")
+
                         p.clear()
                         p.add_run(texto)
 
-    # fotos
+    # FOTOS
     if fotos:
         doc.add_paragraph("\nFotos do Atendimento:\n")
-        for f in fotos:
-            doc.add_picture(f, width=Cm(12))
 
+        for img in fotos:
+            if os.path.exists(img):
+                doc.add_picture(img, width=Cm(12))
+
+    # SALVAR
     os.makedirs("temp", exist_ok=True)
     caminho = os.path.join("temp", "saida.docx")
     doc.save(caminho)
@@ -84,19 +99,36 @@ def gerar_doc(dados, fotos):
 # ========================
 # ROTAS
 # ========================
+
 @app.route("/")
 def home():
     return render_template("index.html")
 
+# ========================
+# GERAR DOCX
+# ========================
 @app.route("/gerar", methods=["POST"])
 def gerar():
     form = request.form
 
+    # DATA
     data_raw = form.get("data")
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
-    tempo = calcular_tempo(form.get("inicio"), form.get("fim"))
+    if data_raw:
+        try:
+            data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except:
+            data_fmt = ""
+    else:
+        data_fmt = ""
 
+    # TEMPO
+    inicio = form.get("inicio")
+    fim = form.get("fim")
+
+    tempo = calcular_tempo(inicio, fim)
+
+    # DADOS
     dados = {
         "{{PROTOCOLO}}": form.get("protocolo"),
         "{{TITULO}}": form.get("titulo"),
@@ -105,30 +137,64 @@ def gerar():
         "{{LOCAL}}": form.get("local"),
         "{{TECNICO}}": form.get("tecnico"),
         "{{DATA}}": data_fmt,
-        "{{HORARIO}}": f"{form.get('inicio')} as {form.get('fim')}",
+        "{{HORARIO}}": f"{inicio} as {fim}" if inicio and fim else "",
         "{{TEMPO}}": tempo,
         "{{GERENTE}}": form.get("gerente"),
         "{{DESCRICAO}}": form.get("descricao"),
-        "LOCAL": form.get("local")
+        "LOCAL": form.get("local") or "arquivo"
     }
 
-    files = request.files.getlist("fotos")
+    # FOTOS
     fotos = []
+    files = request.files.getlist("fotos")
 
     for f in files:
-        if f.filename:
-            path = os.path.join("temp", f.filename)
-            f.save(path)
-            fotos.append(path)
+        if f and f.filename:
+            caminho = os.path.join("temp", f.filename)
+            f.save(caminho)
+            fotos.append(caminho)
 
-    doc = gerar_doc(dados, fotos)
+    # GERAR DOCUMENTO
+    caminho_doc = gerar_doc(dados, fotos)
+
+    # SALVAR HISTORICO
     salvar_historico(dados)
 
-    return send_file(doc, as_attachment=True)
+    return send_file(caminho_doc, as_attachment=True)
 
+# ========================
+# EXCEL COM FILTRO
+# ========================
 @app.route("/excel")
 def excel():
-    return send_file("historico.xlsx", as_attachment=True)
+    mes = request.args.get("mes")
+
+    if not os.path.exists("historico.xlsx"):
+        return "Sem dados"
+
+    df = pd.read_excel("historico.xlsx")
+
+    # FILTRO POR MES
+    if mes:
+        try:
+            ano, mes_num = mes.split("-")
+
+            def filtro(data_str):
+                try:
+                    d = datetime.strptime(data_str, "%d/%m/%Y")
+                    return d.year == int(ano) and d.month == int(mes_num)
+                except:
+                    return False
+
+            df = df[df["Data"].apply(filtro)]
+
+        except:
+            pass
+
+    caminho = "relatorio.xlsx"
+    df.to_excel(caminho, index=False)
+
+    return send_file(caminho, as_attachment=True)
 
 # ========================
 # START
