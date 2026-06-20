@@ -19,12 +19,12 @@ def calcular_tempo(inicio, fim):
     return f"{h:02}:{m:02}"
 
 # ========================
-# HISTORICO EXCEL
+# HISTÓRICO EXCEL
 # ========================
 def salvar_historico(dados):
     arquivo = "historico.xlsx"
 
-    novo = {
+    registro = {
         "Data": dados["{{DATA}}"],
         "Título": dados["{{TITULO}}"],
         "Loja": dados["{{LOJA}}"],
@@ -34,7 +34,7 @@ def salvar_historico(dados):
         "Gerente": dados["{{GERENTE}}"]
     }
 
-    df_new = pd.DataFrame([novo])
+    df_new = pd.DataFrame([registro])
 
     if os.path.exists(arquivo):
         df_old = pd.read_excel(arquivo)
@@ -45,21 +45,19 @@ def salvar_historico(dados):
     df.to_excel(arquivo, index=False)
 
 # ========================
-# GERAR DOCX
+# DOCX
 # ========================
 def gerar_doc(dados, fotos):
     doc = Document("MODELO_RAT.docx")
 
-    # texto
     for p in doc.paragraphs:
-        texto = "".join(r.text for r in p.runs)
+        texto = "".join(run.text for run in p.runs)
         if "{{" in texto:
             for k, v in dados.items():
                 texto = texto.replace(k, v)
             p.clear()
             p.add_run(texto)
 
-    # tabelas
     for t in doc.tables:
         for r in t.rows:
             for c in r.cells:
@@ -95,7 +93,7 @@ def gerar():
     form = request.form
 
     data_raw = form.get("data")
-    data_formatada = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
     tempo = calcular_tempo(form.get("inicio"), form.get("fim"))
 
@@ -106,7 +104,7 @@ def gerar():
         "{{LOJA}}": form.get("loja"),
         "{{LOCAL}}": form.get("local"),
         "{{TECNICO}}": form.get("tecnico"),
-        "{{DATA}}": data_formatada,
+        "{{DATA}}": data_fmt,
         "{{HORARIO}}": f"{form.get('inicio')} as {form.get('fim')}",
         "{{TEMPO}}": tempo,
         "{{GERENTE}}": form.get("gerente"),
@@ -114,18 +112,16 @@ def gerar():
         "LOCAL": form.get("local")
     }
 
-    # fotos
     files = request.files.getlist("fotos")
     fotos = []
 
-    for file in files:
-        if file.filename:
-            caminho = os.path.join("temp", file.filename)
-            file.save(caminho)
-            fotos.append(caminho)
+    for f in files:
+        if f.filename:
+            path = os.path.join("temp", f.filename)
+            f.save(path)
+            fotos.append(path)
 
     doc = gerar_doc(dados, fotos)
-
     salvar_historico(dados)
 
     return send_file(doc, as_attachment=True)

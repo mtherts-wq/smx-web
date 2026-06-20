@@ -9,7 +9,7 @@
 body {
     margin: 0;
     font-family: Arial;
-    background-color: #1b1b1b;
+    background: #121212;
     color: white;
     display: flex;
     justify-content: center;
@@ -20,49 +20,50 @@ body {
     padding: 20px;
 }
 
+label { display:block; margin-top:10px; }
+
 input, textarea, select {
     width: 100%;
     padding: 10px;
-    margin-top: 5px;
-    border-radius: 8px;
-    border: 1px solid #555;
-    background-color: #2b2b2b;
-    color: white;
+    margin-top:5px;
+    border-radius:8px;
+    background:#2a2a2a;
+    color:white;
+    border:1px solid #444;
 }
 
-textarea { height: 100px; }
+textarea { height:100px; }
 
 .row {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
+    display:flex;
+    gap:10px;
+    margin-top:15px;
 }
 
 button {
-    flex: 1;
-    padding: 10px;
-    border-radius: 8px;
-    border: none;
-    background-color: #2f6fa5;
-    color: white;
+    flex:1;
+    padding:10px;
+    border:none;
+    border-radius:8px;
+    background:#2f6fa5;
+    color:white;
 }
 </style>
 
 <script>
-function validar() {
-    let inicio = document.querySelector("[name=inicio]").value;
-    let fim = document.querySelector("[name=fim]").value;
+function validar(){
+    let i=document.querySelector("[name=inicio]").value;
+    let f=document.querySelector("[name=fim]").value;
 
-    function toMin(h) {
-        let [hh, mm] = h.split(":");
-        return parseInt(hh)*60 + parseInt(mm);
+    function m(t){
+        let [h,mi]=t.split(":");
+        return h*60 + parseInt(mi);
     }
 
-    if (toMin(fim) <= toMin(inicio)) {
+    if(!i || !f || m(f)<=m(i)){
         alert("Hora fim deve ser maior!");
         return false;
     }
-
     return true;
 }
 </script>
@@ -83,7 +84,6 @@ function validar() {
 <select name="loja">
 <option>ZARA</option>
 <option>VIVARA</option>
-<option>DALGAS</option>
 </select>
 
 <input name="local" placeholder="Local">
@@ -102,8 +102,8 @@ function validar() {
 <!-- ✅ BOTÕES -->
 <div class="row">
 <button type="submit">Gerar</button>
-<button type="button" onclick="location.href='/excel'Reset</button>
-<button type="button">PDF</button>
+<button type="button" onclick="window.location.href='/excel'"button">Abrir PDF</button>
+<button type="reset">Reset</button>
 </div>
 
 </form>
