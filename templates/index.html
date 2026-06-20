@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SMX - Gerador</title>
+<title>SMX - Gerador RAT</title>
 
 <style>
 body {
@@ -62,6 +62,7 @@ button {
 button:hover {
     background-color: #4a90d6;
 }
+
 .reset {
     width: 100%;
     margin-top: 10px;
@@ -86,6 +87,7 @@ function validar() {
     return true;
 }
 </script>
+
 </head>
 
 <body>
@@ -94,13 +96,14 @@ function validar() {
 
 <h2>SMX - Gerador de Chamado</h2>
 
-<form action="/gerar" method="POST" enctype="multipart/form-data" onsubmit="return validar()">
+<!-- ✅ FORM CORRETO -->
+<form action="/gerar" method="post" enctype="multipart/form-data" onsubmit="return validar()">
 
 <label>Protocolo</label>
-<input name="protocolo">
+<input name="protocolo" required>
 
 <label>Título</label>
-<input name="titulo">
+<input name="titulo" required>
 
 <label>Atendente SMX</label>
 <input name="atendente">
@@ -121,7 +124,7 @@ function validar() {
 <input name="tecnico">
 
 <label>Data</label>
-<input type="date" name="data">
+<input type="date" name="data" required>
 
 <label>Hora início</label>
 <input name="inicio" placeholder="08:00">
@@ -138,6 +141,15 @@ function validar() {
 <label>Fotos</label>
 <input type="file" name="fotos" multiple>
 
+<!-- ✅ BOTÕES COMPLETOS -->
 <div class="row">
-<button type="submit">Gerar</button>
-<button type="button" onclick="location.href='/excel
+    <button type="submit">Gerar</button>
+    <button type="button" onclick="window.location.href='/excel'et</button>
+</div>
+
+</form>
+
+</div>
+
+</body>
+</html>
