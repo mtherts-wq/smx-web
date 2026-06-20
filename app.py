@@ -1,60 +1,84 @@
 from flask import Flask, render_template, request, send_file
 from docx import Document
+from docx.shared import Cm
 from datetime import datetime
 import os
+import pandas as pd
 
 app = Flask(__name__)
 
 # ========================
 # CALCULAR TEMPO
 # ========================
-
 def calcular_tempo(inicio, fim):
     t1 = datetime.strptime(inicio, "%H:%M")
     t2 = datetime.strptime(fim, "%H:%M")
-
     diff = t2 - t1
-    h = diff.seconds // 3600
-    m = (diff.seconds % 3600) // 60
-
-    return f"{h:02}:{m:02}"
+    horas = diff.seconds // 3600
+    minutos = (diff.seconds % 3600) // 60
+    return f"{horas:02}:{minutos:02}"
 
 # ========================
-# GERAR DOC
+# SALVAR HISTÓRICO
 # ========================
+def salvar_historico(dados):
+    arquivo = "historico.xlsx"
 
-def gerar_doc(dados):
+    registro = {
+        "Data": dados["{{DATA}}"],
+        "Título": dados["{{TITULO}}"],
+        "Loja": dados["{{LOJA}}"],
+        "Atendente": dados["{{ATENDENTE}}"],
+        "Local": dados["{{LOCAL}}"],
+        "Tempo": dados["{{TEMPO}}"],
+        "Gerente": dados["{{GERENTE}}"]
+    }
+
+    df_new = pd.DataFrame([registro])
+
+    if os.path.exists(arquivo):
+        df_old = pd.read_excel(arquivo)
+        df = pd.concat([df_old, df_new], ignore_index=True)
+    else:
+        df = df_new
+
+    df.to_excel(arquivo, index=False)
+
+# ========================
+# GERAR DOCX + FOTOS
+# ========================
+def gerar_doc(dados, fotos):
     doc = Document("MODELO_RAT.docx")
 
-    # ✅ PARÁGRAFOS
+    # TEXTO
     for p in doc.paragraphs:
         texto = "".join(run.text for run in p.runs)
-
         if "{{" in texto:
             for k, v in dados.items():
                 texto = texto.replace(k, v)
-
             p.clear()
             p.add_run(texto)
 
-    # ✅ TABELAS
-    for tabela in doc.tables:
-        for row in tabela.rows:
+    # TABELAS
+    for t in doc.tables:
+        for row in t.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     texto = "".join(run.text for run in p.runs)
-
                     if "{{" in texto:
                         for k, v in dados.items():
                             texto = texto.replace(k, v)
-
                         p.clear()
                         p.add_run(texto)
 
-    nome = f"{dados['LOCAL']}_{datetime.now().strftime('%d%m')}.docx"
-    caminho = os.path.join("temp", nome)
+    # ✅ FOTOS
+    if fotos:
+        doc.add_paragraph("\nFotos do Atendimento:\n")
+        for imagem in fotos:
+            doc.add_picture(imagem, width=Cm(12))
 
     os.makedirs("temp", exist_ok=True)
+    caminho = os.path.join("temp", "saida.docx")
     doc.save(caminho)
 
     return caminho
@@ -62,7 +86,6 @@ def gerar_doc(dados):
 # ========================
 # ROTAS
 # ========================
-
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -71,11 +94,9 @@ def home():
 def gerar():
     form = request.form
 
-    # ✅ DATA FORMATADA
     data_raw = form.get("data")
     data_formatada = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
-    # ✅ TEMPO
     tempo = calcular_tempo(form.get("inicio"), form.get("fim"))
 
     dados = {
@@ -90,18 +111,31 @@ def gerar():
         "{{TEMPO}}": tempo,
         "{{GERENTE}}": form.get("gerente"),
         "{{DESCRICAO}}": form.get("descricao"),
-
-        # ✅ nome do arquivo
         "LOCAL": form.get("local")
     }
 
-    caminho = gerar_doc(dados)
+    # FOTOS
+    files = request.files.getlist("fotos")
+    fotos = []
 
-    return send_file(caminho, as_attachment=True)
+    for f in files:
+        if f.filename:
+            caminho = os.path.join("temp", f.filename)
+            f.save(caminho)
+            fotos.append(caminho)
+
+    caminho_doc = gerar_doc(dados, fotos)
+
+    salvar_historico(dados)
+
+    return send_file(caminho_doc, as_attachment=True)
+
+@app.route("/excel")
+def excel():
+    return send_file("historico.xlsx", as_attachment=True)
 
 # ========================
 # START
 # ========================
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)

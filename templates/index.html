@@ -62,12 +62,30 @@ button {
 button:hover {
     background-color: #4a90d6;
 }
-
 .reset {
     width: 100%;
     margin-top: 10px;
 }
 </style>
+
+<script>
+function validar() {
+    let inicio = document.querySelector("[name=inicio]").value;
+    let fim = document.querySelector("[name=fim]").value;
+
+    if (!inicio || !fim) {
+        alert("Preencha horário!");
+        return false;
+    }
+
+    if (fim <= inicio) {
+        alert("Hora fim deve ser maior!");
+        return false;
+    }
+
+    return true;
+}
+</script>
 </head>
 
 <body>
@@ -76,7 +94,7 @@ button:hover {
 
 <h2>SMX - Gerador de Chamado</h2>
 
-<form action="/gerar" method="POST">
+<form action="/gerar" method="POST" enctype="multipart/form-data" onsubmit="return validar()">
 
 <label>Protocolo</label>
 <input name="protocolo">
@@ -118,19 +136,8 @@ button:hover {
 <textarea name="descricao"></textarea>
 
 <label>Fotos</label>
-<input type="file" multiple>
+<input type="file" name="fotos" multiple>
 
 <div class="row">
-<button type="button">Fotos</button>
 <button type="submit">Gerar</button>
-<button type="button">Abrir PDF</button>
-</div>
-
-<button type="reset" class="reset">Reset</button>
-
-</form>
-
-</div>
-
-</body>
-</html>
+<button type="button" onclick="location.href='/excel
