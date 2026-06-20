@@ -58,6 +58,7 @@ button:hover {
     background:#4a90d6;
 }
 
+/* MODAL */
 .modal {
     display:none;
     position:fixed;
@@ -84,12 +85,13 @@ button:hover {
 </style>
 
 <script>
+// ✅ validação
 function validar(){
-    let i=document.querySelector("[name=inicio]").value;
-    let f=document.querySelector("[name=fim]").value;
+    let i = document.querySelector("[name=inicio]").value;
+    let f = document.querySelector("[name=fim]").value;
 
     function toMin(t){
-        let [h,m]=t.split(":");
+        let [h,m] = t.split(":");
         return h*60 + parseInt(m);
     }
 
@@ -100,6 +102,7 @@ function validar(){
     return true;
 }
 
+// ✅ modal
 function abrirModal(){
     document.getElementById("modal").style.display="flex";
 }
@@ -108,6 +111,7 @@ function fecharModal(){
     document.getElementById("modal").style.display="none";
 }
 
+// ✅ excel
 function gerarExcel(){
     let mes = document.getElementById("mes").value;
 
@@ -116,23 +120,21 @@ function gerarExcel(){
         return;
     }
 
-    window.location.href="/excel?mes="+mes;
+    window.location.href = "/excel?mes=" + mes;
 }
 
-// ✅ GERAR PDF EM NOVA ABA
+// ✅ PDF nova aba
 function gerarPDF(){
     let form = document.getElementById("formRAT");
 
     form.action = "/pdf";
-
-    // abre nova aba
     form.target = "_blank";
 
     form.submit();
 
-    // volta ao padrão depois
-    form.target = "_self";
+    // volta ao padrão
     form.action = "/gerar";
+    form.target = "_self";
 }
 </script>
 
@@ -144,7 +146,12 @@ function gerarPDF(){
 
 <h2>Gerador RAT</h2>
 
-<form id="formRAT" action="/gerar" method="post" enctype="multipart/form-data" onsubmit="return validar()">
+<!-- ✅ FORM CORRETO -->
+<form id="formRAT"
+      action="/gerar"
+      method="post"
+      enctype="multipart/form-data"
+      onsubmit="return validar()">
 
 <input name="protocolo" placeholder="Protocolo">
 <input name="titulo" placeholder="Título">
@@ -179,13 +186,8 @@ function gerarPDF(){
 
 <!-- ✅ BOTÕES SECUNDÁRIOS -->
 <div class="row">
-
-    <button type="button" onclick="gerarPDF()">
-        Gerar PDF
-    </button>
-
+    <button type="button" onclick="gerarPDF()">Gerar PDF</button>
     <button type="reset">Reset</button>
-
 </div>
 
 </form>
@@ -200,8 +202,8 @@ function gerarPDF(){
         <input type="month" id="mes">
 
         <div class="modal-buttons">
-            <button onclick="gerarExcel()">Gerar</button>
-            <button onclick="fecharModal()">Cancelar</button>
+            <button type="button" onclick="gerarExcel()">Gerar</button>
+            <button type="button" onclick="fecharModal()">Cancelar</button>
         </div>
 
     </div>
