@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SMX - Gerador RAT</title>
+<title>Gerador RAT</title>
 
 <style>
 body {
@@ -23,7 +23,6 @@ h2 {
     text-align:center;
 }
 
-/* Campos */
 input, textarea, select {
     width:100%;
     padding:10px;
@@ -39,7 +38,6 @@ textarea {
     height:100px;
 }
 
-/* Botões padrão */
 .row {
     display:flex;
     gap:10px;
@@ -60,7 +58,6 @@ button:hover {
     background:#4a90d6;
 }
 
-/* ✅ Modal corrigido */
 .modal {
     display:none;
     position:fixed;
@@ -87,7 +84,6 @@ button:hover {
 </style>
 
 <script>
-// ✅ validação correta
 function validar(){
     let i=document.querySelector("[name=inicio]").value;
     let f=document.querySelector("[name=fim]").value;
@@ -104,7 +100,6 @@ function validar(){
     return true;
 }
 
-// ✅ modal
 function abrirModal(){
     document.getElementById("modal").style.display="flex";
 }
@@ -113,7 +108,6 @@ function fecharModal(){
     document.getElementById("modal").style.display="none";
 }
 
-// ✅ gerar excel
 function gerarExcel(){
     let mes = document.getElementById("mes").value;
 
@@ -124,6 +118,22 @@ function gerarExcel(){
 
     window.location.href="/excel?mes="+mes;
 }
+
+// ✅ GERAR PDF EM NOVA ABA
+function gerarPDF(){
+    let form = document.getElementById("formRAT");
+
+    form.action = "/pdf";
+
+    // abre nova aba
+    form.target = "_blank";
+
+    form.submit();
+
+    // volta ao padrão depois
+    form.target = "_self";
+    form.action = "/gerar";
+}
 </script>
 
 </head>
@@ -132,9 +142,9 @@ function gerarExcel(){
 
 <div class="container">
 
-<h2>SMX - Gerador RAT</h2>
+<h2>Gerador RAT</h2>
 
-<form action="/gerar" method="post" enctype="multipart/form-data" onsubmit="return validar()">
+<form id="formRAT" action="/gerar" method="post" enctype="multipart/form-data" onsubmit="return validar()">
 
 <input name="protocolo" placeholder="Protocolo">
 <input name="titulo" placeholder="Título">
@@ -169,16 +179,18 @@ function gerarExcel(){
 
 <!-- ✅ BOTÕES SECUNDÁRIOS -->
 <div class="row">
-    <button type="button"
-        onclick="alert('PDF precisa backend, te explico abaixo')">
-        Abrir PDF
+
+    <button type="button" onclick="gerarPDF()">
+        Gerar PDF
     </button>
+
     <button type="reset">Reset</button>
+
 </div>
 
 </form>
 
-<!-- ✅ MODAL CORRIGIDO -->
+<!-- ✅ MODAL -->
 <div id="modal" class="modal">
 
     <div class="modal-box">
