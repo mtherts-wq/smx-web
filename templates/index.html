@@ -20,15 +20,6 @@ body {
     padding: 20px;
 }
 
-h2 {
-    text-align: center;
-}
-
-label {
-    margin-top: 10px;
-    display: block;
-}
-
 input, textarea, select {
     width: 100%;
     padding: 10px;
@@ -39,9 +30,7 @@ input, textarea, select {
     color: white;
 }
 
-textarea {
-    height: 100px;
-}
+textarea { height: 100px; }
 
 .row {
     display: flex;
@@ -56,16 +45,6 @@ button {
     border: none;
     background-color: #2f6fa5;
     color: white;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #4a90d6;
-}
-
-.reset {
-    width: 100%;
-    margin-top: 10px;
 }
 </style>
 
@@ -74,12 +53,12 @@ function validar() {
     let inicio = document.querySelector("[name=inicio]").value;
     let fim = document.querySelector("[name=fim]").value;
 
-    if (!inicio || !fim) {
-        alert("Preencha horário!");
-        return false;
+    function toMin(h) {
+        let [hh, mm] = h.split(":");
+        return parseInt(hh)*60 + parseInt(mm);
     }
 
-    if (fim <= inicio) {
+    if (toMin(fim) <= toMin(inicio)) {
         alert("Hora fim deve ser maior!");
         return false;
     }
@@ -87,65 +66,44 @@ function validar() {
     return true;
 }
 </script>
-
 </head>
 
 <body>
 
 <div class="container">
 
-<h2>SMX - Gerador de RAT</h2>
+<h2>SMX - Gerador RAT</h2>
 
-<!-- ✅ FORM CORRETO (ISSO RESOLVE OS BOTÕES) -->
 <form action="/gerar" method="post" enctype="multipart/form-data" onsubmit="return validar()">
 
-<label>Protocolo</label>
-<input name="protocolo" required>
+<input name="protocolo" placeholder="Protocolo">
+<input name="titulo" placeholder="Título">
+<input name="atendente" placeholder="Atendente">
 
-<label>Título</label>
-<input name="titulo" required>
-
-<label>Atendente SMX</label>
-<input name="atendente">
-
-<label>Loja</label>
 <select name="loja">
 <option>ZARA</option>
 <option>VIVARA</option>
-<option>DALGAS G7</option>
-<option>DALGAS Escritório</option>
-<option>Clinica CLIMAR</option>
+<option>DALGAS</option>
 </select>
 
-<label>Local</label>
-<input name="local">
+<input name="local" placeholder="Local">
+<input name="tecnico" placeholder="Técnico">
+<input type="date" name="data">
 
-<label>Técnico</label>
-<input name="tecnico">
-
-<label>Data</label>
-<input type="date" name="data" required>
-
-<label>Hora início</label>
 <input name="inicio" placeholder="08:00">
-
-<label>Hora fim</label>
 <input name="fim" placeholder="09:00">
 
-<label>Gerente</label>
-<input name="gerente">
+<input name="gerente" placeholder="Gerente">
 
-<label>Descrição</label>
-<textarea name="descricao"></textarea>
+<textarea name="descricao" placeholder="Descrição"></textarea>
 
-<label>Fotos</label>
 <input type="file" name="fotos" multiple>
 
-<!-- ✅ LINHA 1 DE BOTÕES -->
+<!-- ✅ BOTÕES -->
 <div class="row">
-    <button type="submit">Gerar</button>
-    <button type="button" onclick="ick="alert('PDF disponível na próxima versão')">Abrir PDF</button>
-    <button type="reset">Reset</button>
+<button type="submit">Gerar</button>
+<button type="button" onclick="location.href='/excel'Reset</button>
+<button type="button">PDF</button>
 </div>
 
 </form>

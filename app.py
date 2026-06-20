@@ -8,23 +8,23 @@ import pandas as pd
 app = Flask(__name__)
 
 # ========================
-# CALCULAR TEMPO
+# CALCULO TEMPO
 # ========================
 def calcular_tempo(inicio, fim):
     t1 = datetime.strptime(inicio, "%H:%M")
     t2 = datetime.strptime(fim, "%H:%M")
     diff = t2 - t1
-    horas = diff.seconds // 3600
-    minutos = (diff.seconds % 3600) // 60
-    return f"{horas:02}:{minutos:02}"
+    h = diff.seconds // 3600
+    m = (diff.seconds % 3600) // 60
+    return f"{h:02}:{m:02}"
 
 # ========================
-# SALVAR HISTÓRICO
+# HISTORICO EXCEL
 # ========================
 def salvar_historico(dados):
     arquivo = "historico.xlsx"
 
-    registro = {
+    novo = {
         "Data": dados["{{DATA}}"],
         "Título": dados["{{TITULO}}"],
         "Loja": dados["{{LOJA}}"],
@@ -34,7 +34,7 @@ def salvar_historico(dados):
         "Gerente": dados["{{GERENTE}}"]
     }
 
-    df_new = pd.DataFrame([registro])
+    df_new = pd.DataFrame([novo])
 
     if os.path.exists(arquivo):
         df_old = pd.read_excel(arquivo)
@@ -45,25 +45,25 @@ def salvar_historico(dados):
     df.to_excel(arquivo, index=False)
 
 # ========================
-# GERAR DOCX + FOTOS
+# GERAR DOCX
 # ========================
 def gerar_doc(dados, fotos):
     doc = Document("MODELO_RAT.docx")
 
-    # TEXTO
+    # texto
     for p in doc.paragraphs:
-        texto = "".join(run.text for run in p.runs)
+        texto = "".join(r.text for r in p.runs)
         if "{{" in texto:
             for k, v in dados.items():
                 texto = texto.replace(k, v)
             p.clear()
             p.add_run(texto)
 
-    # TABELAS
+    # tabelas
     for t in doc.tables:
-        for row in t.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
+        for r in t.rows:
+            for c in r.cells:
+                for p in c.paragraphs:
                     texto = "".join(run.text for run in p.runs)
                     if "{{" in texto:
                         for k, v in dados.items():
@@ -71,11 +71,11 @@ def gerar_doc(dados, fotos):
                         p.clear()
                         p.add_run(texto)
 
-    # ✅ FOTOS
+    # fotos
     if fotos:
         doc.add_paragraph("\nFotos do Atendimento:\n")
-        for imagem in fotos:
-            doc.add_picture(imagem, width=Cm(12))
+        for f in fotos:
+            doc.add_picture(f, width=Cm(12))
 
     os.makedirs("temp", exist_ok=True)
     caminho = os.path.join("temp", "saida.docx")
@@ -114,21 +114,21 @@ def gerar():
         "LOCAL": form.get("local")
     }
 
-    # FOTOS
+    # fotos
     files = request.files.getlist("fotos")
     fotos = []
 
-    for f in files:
-        if f.filename:
-            caminho = os.path.join("temp", f.filename)
-            f.save(caminho)
+    for file in files:
+        if file.filename:
+            caminho = os.path.join("temp", file.filename)
+            file.save(caminho)
             fotos.append(caminho)
 
-    caminho_doc = gerar_doc(dados, fotos)
+    doc = gerar_doc(dados, fotos)
 
     salvar_historico(dados)
 
-    return send_file(caminho_doc, as_attachment=True)
+    return send_file(doc, as_attachment=True)
 
 @app.route("/excel")
 def excel():
