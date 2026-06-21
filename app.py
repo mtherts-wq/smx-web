@@ -4,11 +4,7 @@ from docx.shared import Cm
 from datetime import datetime
 import os
 import pandas as pd
-import subprocess  # ✅ necessário para PDF real
-
-# ✅ PDF (conversão)
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+import subprocess
 
 app = Flask(__name__)
 
@@ -27,7 +23,7 @@ def calcular_tempo(inicio, fim):
         return "00:00"
 
 # ========================
-# NOME ARQUIVO
+# NOME DO ARQUIVO
 # ========================
 def gerar_nome(dados):
     data = dados.get("{{DATA}}", "")
@@ -40,7 +36,6 @@ def gerar_nome(dados):
     except:
         data_fmt = "0000"
 
-    # ✅ regra correta
     if loja and loja.upper() == "ZARA":
         nome = f"{local}_{data_fmt}"
     else:
@@ -84,7 +79,7 @@ def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    # ✅ substituição de placeholders
+    # ✅ Substituir placeholders
     for p in doc.paragraphs:
         texto = "".join(r.text for r in p.runs)
         if "{{" in texto:
@@ -104,15 +99,24 @@ def gerar_doc(dados, fotos):
                         p.clear()
                         p.add_run(texto)
 
-    # ✅ FOTOS CORRIGIDAS
+    # ✅ INSERÇÃO CORRETA DAS FOTOS
     if fotos:
-        doc.add_page_break()
-        doc.add_paragraph("Fotos:")
+        for p in doc.paragraphs:
+            if "Validado com a Gerente" in p.text:
 
-        for f in fotos:
-            if os.path.exists(f):
-                # ✅ TAMANHO CONTROLADO
-                doc.add_picture(f, width=Cm(5), height=Cm(8))
+                # ✅ 5 espaços antes
+                for _ in range(5):
+                    p.insert_paragraph_before("")
+
+                p.insert_paragraph_before("Fotos:")
+
+                for f in fotos:
+                    if os.path.exists(f):
+                        new_p = p.insert_paragraph_before("")
+                        run = new_p.add_run()
+                        run.add_picture(f, width=Cm(5), height=Cm(8))
+
+                break
 
     os.makedirs("temp", exist_ok=True)
     caminho = os.path.join("temp", "saida.docx")
@@ -121,7 +125,7 @@ def gerar_doc(dados, fotos):
     return caminho
 
 # ========================
-# CONVERTER DOCX → PDF
+# DOCX → PDF (REAL)
 # ========================
 def converter_para_pdf(caminho_docx):
     pasta_saida = "temp"
@@ -151,7 +155,6 @@ def gerar():
     try:
         form = request.form
 
-        # ✅ DATA FORMATADA
         data_raw = form.get("data")
         if data_raw:
             try:
@@ -205,13 +208,12 @@ def gerar():
     except Exception as e:
         return f"Erro: {str(e)}"
 
-# ✅ GERAR PDF IGUAL AO DOCX
+# ✅ GERAR PDF (IGUAL DOCX + DOWNLOAD)
 @app.route("/pdf", methods=["POST"])
 def pdf():
     try:
         form = request.form
 
-        # ✅ DATA FORMATADA
         data_raw = form.get("data")
         if data_raw:
             try:
@@ -251,17 +253,14 @@ def pdf():
                 f.save(path)
                 fotos.append(path)
 
-        # ✅ GERA DOCX
         caminho_docx = gerar_doc(dados, fotos)
-
-        # ✅ CONVERTE PRA PDF
         caminho_pdf = converter_para_pdf(caminho_docx)
 
         nome = gerar_nome(dados)
 
         return send_file(
             caminho_pdf,
-            as_attachment=False,
+            as_attachment=True,  # ✅ agora baixa
             download_name=f"{nome}.pdf"
         )
 
