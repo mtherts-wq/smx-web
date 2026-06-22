@@ -9,7 +9,6 @@ import time
 
 app = Flask(__name__)
 
-# 🔥 COLOQUE SUA API KEY AQUI
 API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiNmY0YWU3MzAyMjk0YTMzMTg5ZmNiMTUzYzg0Mjg0MjJhMjViNzgwYWZkMjFkN2FmMTliY2E1YjlmNjg5NjNiMzVkZWNjNjYzZWFiM2JhYzAiLCJpYXQiOjE3ODIxNjYwNDcuMjM2MzEyLCJuYmYiOjE3ODIxNjYwNDcuMjM2MzEzLCJleHAiOjQ5Mzc4Mzk2NDcuMjMxMzU3LCJzdWIiOiI3NjA2OTMyOSIsInNjb3BlcyI6WyJ0YXNrLnJlYWQiLCJ0YXNrLndyaXRlIl19.gXK-freAXtMNbA74Wd7NBBGdoaLXK_Mb36tv2HfAcB9He1tRk75JDU5cdl0NIzkcriAp1CINPbmNENTZGSPqh-cV4fw0DXz0SAimUVXiBp2a5edZ8XRp9Lv2fxuzTYR8Gnq9WT-How-ZNANU2jaVJDAFeRWsrw0eqC1g5ZXUOyAWQdi4vo9c1tlk2xGTrLnJbQ-zEdCEpelPYb9JaBvWr_n-jWi9hQ6_OEKLab9ktcvFfy3abi7Xlc58lSUjwSn7W2bqs8wPpMnCWqnL--fCmkI9QNwNLx8b6a24xKzyh3CBKGb7-1sZdDwOoVUMwMN13rczMwmgpcKRfp_u-HkvTsrVzzhj5B-a8QTUV0QHIeb7mils3hOhuK4vyHUw2QUGcsulNX0Vu_6xO5A2Wy-ZeZXNzcs8wdmORgshgqXVsQQaOog2KpDdIkeVG839G1b2Qx6sM4Wynou6oYZqETE14JIwjlNU04fERBzUHhAL59EEI6wq-P3xBKj6GoCAHfmYnjpAIAxQSohuWNREM4jeP_ZFaYOXvi-IdaxOmZ5oAgJwghe9c-1PCNKArMhKda8z7Zf42O7KQ4VBWjo2GlZjN-PIAzmK2rmaMvW8xNTDbHhTRHhwyYk9jKgCsHonGOtJ_PKaavA1lh18lcLXFjLg7b_P2YDkM41645VvmLS3hSs"
 
 # ========================
@@ -35,7 +34,6 @@ def validar_campos(form):
         "local","tecnico","data","inicio",
         "fim","gerente","descricao"
     ]
-
     for campo in campos:
         if not form.get(campo):
             return f"Campo obrigatório: {campo}"
@@ -55,10 +53,41 @@ def gerar_nome(dados):
     except:
         data_fmt = "0000"
 
-    base = local if loja.upper()=="ZARA" else loja
+    if loja and loja.upper() == "ZARA":
+        base = local
+    else:
+        base = loja
+
     base = (base or "arquivo").replace(" ","_")
 
     return f"{base}_{data_fmt}"
+
+# ========================
+# HISTORICO ✅
+# ========================
+def salvar_historico(dados):
+
+    arquivo = "historico.xlsx"
+
+    registro = {
+        "Data": dados.get("{{DATA}}"),
+        "Título": dados.get("{{TITULO}}"),
+        "Loja": dados.get("{{LOJA}}"),
+        "Atendente": dados.get("{{ATENDENTE}}"),
+        "Local": dados.get("{{LOCAL}}"),
+        "Tempo": dados.get("{{TEMPO}}"),
+        "Gerente": dados.get("{{GERENTE}}")
+    }
+
+    df_new = pd.DataFrame([registro])
+
+    if os.path.exists(arquivo):
+        df_old = pd.read_excel(arquivo)
+        df = pd.concat([df_old, df_new], ignore_index=True)
+    else:
+        df = df_new
+
+    df.to_excel(arquivo, index=False)
 
 # ========================
 # SUBSTITUIR CAMPOS
@@ -106,7 +135,7 @@ def gerar_doc(dados,fotos):
 
             doc.element.body.insert(i,table._element)
 
-            if i+1 < len(doc.paragraphs):
+            if i + 1 < len(doc.paragraphs):
                 doc.paragraphs[i+1].insert_paragraph_before("")
             else:
                 doc.add_paragraph("")
@@ -132,18 +161,9 @@ def converter_pdf(doc_path):
         },
         json={
             "tasks":{
-                "upload":{
-                    "operation":"import/upload"
-                },
-                "convert":{
-                    "operation":"convert",
-                    "input":"upload",
-                    "output_format":"pdf"
-                },
-                "export":{
-                    "operation":"export/url",
-                    "input":"convert"
-                }
+                "upload":{"operation":"import/upload"},
+                "convert":{"operation":"convert","input":"upload","output_format":"pdf"},
+                "export":{"operation":"export/url","input":"convert"}
             }
         }
     ).json()
@@ -158,7 +178,6 @@ def converter_pdf(doc_path):
 
     job_id = response["data"]["id"]
 
-    # espera conversão
     while True:
         job_status = requests.get(
             f"https://api.cloudconvert.com/v2/jobs/{job_id}",
@@ -171,7 +190,6 @@ def converter_pdf(doc_path):
         time.sleep(2)
 
     export = next(t for t in job_status["data"]["tasks"] if t["name"]=="export")
-
     file_url = export["result"]["files"][0]["url"]
 
     pdf_path = doc_path.replace(".docx",".pdf")
@@ -238,6 +256,10 @@ def gerar():
     fotos = salvar_fotos(request)
 
     doc = gerar_doc(dados,fotos)
+
+    # ✅ SALVAR HISTORICO
+    salvar_historico(dados)
+
     nome = gerar_nome(dados)
 
     return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
@@ -261,8 +283,7 @@ def pdf():
     try:
         pdf = converter_pdf(doc)
         return send_file(pdf,as_attachment=True,download_name=f"{nome}.pdf")
-    except Exception as e:
-        # ✅ fallback seguro
+    except:
         return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
 
 @app.route("/excel")
@@ -275,14 +296,13 @@ def excel():
 
     df = pd.read_excel("historico.xlsx")
 
-    # ✅ filtro por mês
     if mes:
         try:
             ano, mes_num = mes.split("-")
 
             def filtro(data_str):
                 try:
-                    d = datetime.strptime(data_str, "%d/%m/%Y")
+                    d = datetime.strptime(data_str,"%d/%m/%Y")
                     return d.year == int(ano) and d.month == int(mes_num)
                 except:
                     return False
@@ -295,13 +315,9 @@ def excel():
     caminho = "temp/relatorio.xlsx"
     os.makedirs("temp", exist_ok=True)
 
-    df.to_excel(caminho, index=False)
+    df.to_excel(caminho,index=False)
 
-    return send_file(
-        caminho,
-        as_attachment=True,
-        download_name="relatorio.xlsx"
-    )
+    return send_file(caminho,as_attachment=True,download_name="relatorio.xlsx")
 
 # ========================
 # START
