@@ -49,7 +49,7 @@ def gerar_nome(dados):
     return (nome or "arquivo").replace(" ", "_")
 
 # ========================
-# HISTORICO
+# HISTORICO RELATORIO
 # ========================
 def salvar_historico(dados):
     arquivo = "historico.xlsx"
