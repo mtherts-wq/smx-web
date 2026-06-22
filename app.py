@@ -265,6 +265,44 @@ def pdf():
         # ✅ fallback seguro
         return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
 
+@app.route("/excel")
+def excel():
+
+    mes = request.args.get("mes")
+
+    if not os.path.exists("historico.xlsx"):
+        return "Sem registros ainda", 400
+
+    df = pd.read_excel("historico.xlsx")
+
+    # ✅ filtro por mês
+    if mes:
+        try:
+            ano, mes_num = mes.split("-")
+
+            def filtro(data_str):
+                try:
+                    d = datetime.strptime(data_str, "%d/%m/%Y")
+                    return d.year == int(ano) and d.month == int(mes_num)
+                except:
+                    return False
+
+            df = df[df["Data"].apply(filtro)]
+
+        except:
+            return "Erro ao processar mês", 400
+
+    caminho = "temp/relatorio.xlsx"
+    os.makedirs("temp", exist_ok=True)
+
+    df.to_excel(caminho, index=False)
+
+    return send_file(
+        caminho,
+        as_attachment=True,
+        download_name="relatorio.xlsx"
+    )
+
 # ========================
 # START
 # ========================
