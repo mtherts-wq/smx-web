@@ -1,11 +1,10 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, abort
 from docx import Document
 from docx.shared import Cm
 from datetime import datetime
 import os
 import pandas as pd
 
-# PDF (sem LibreOffice)
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
@@ -27,7 +26,23 @@ def calcular_tempo(inicio, fim):
         return "00:00"
 
 # ========================
-# NOME ARQUIVO
+# VALIDAÇÃO
+# ========================
+def validar_campos(form):
+    campos = [
+        "protocolo", "titulo", "atendente", "loja",
+        "local", "tecnico", "data", "inicio",
+        "fim", "gerente", "descricao"
+    ]
+
+    for campo in campos:
+        if not form.get(campo):
+            return f"Campo obrigatório não preenchido: {campo}"
+
+    return None
+
+# ========================
+# NOME
 # ========================
 def gerar_nome(dados):
     data = dados.get("{{DATA}}", "")
@@ -40,42 +55,32 @@ def gerar_nome(dados):
     except:
         data_fmt = "0000"
 
-    if loja and loja.strip().upper() == "ZARA":
-        base = local
-    else:
-        base = loja
+    base = local if loja and loja.strip().upper() == "ZARA" else loja
+    base = (base or "arquivo").replace(" ", "_")
 
-    if not base:
-        base = "arquivo"
-
-    base = base.replace(" ", "_")
     return f"{base}_{data_fmt}"
 
 # ========================
-# HISTORICO
+# SUBSTITUIR CAMPOS ✅ FIX
 # ========================
-def salvar_historico(dados):
-    arquivo = "historico.xlsx"
+def substituir_campos(doc, dados):
 
-    registro = {
-        "Data": dados.get("{{DATA}}", ""),
-        "Título": dados.get("{{TITULO}}", ""),
-        "Loja": dados.get("{{LOJA}}", ""),
-        "Atendente": dados.get("{{ATENDENTE}}", ""),
-        "Local": dados.get("{{LOCAL}}", ""),
-        "Tempo": dados.get("{{TEMPO}}", ""),
-        "Gerente": dados.get("{{GERENTE}}", "")
-    }
+    # Parágrafos
+    for p in doc.paragraphs:
+        for k, v in dados.items():
+            if k in p.text:
+                for run in p.runs:
+                    run.text = run.text.replace(k, str(v or ""))
 
-    df_new = pd.DataFrame([registro])
-
-    if os.path.exists(arquivo):
-        df_old = pd.read_excel(arquivo)
-        df = pd.concat([df_old, df_new], ignore_index=True)
-    else:
-        df = df_new
-
-    df.to_excel(arquivo, index=False)
+    # Tabelas
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    for k, v in dados.items():
+                        if k in p.text:
+                            for run in p.runs:
+                                run.text = run.text.replace(k, str(v or ""))
 
 # ========================
 # DOCX
@@ -87,16 +92,10 @@ def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    # substituir campos
-    for p in doc.paragraphs:
-        texto = "".join(r.text for r in p.runs)
-        if "{{" in texto:
-            for k, v in dados.items():
-                texto = texto.replace(k, v or "")
-            p.clear()
-            p.add_run(texto)
+    # ✅ substituição corrigida
+    substituir_campos(doc, dados)
 
-    # fotos antes do gerente
+    # ✅ fotos antes do gerente
     for i, p in enumerate(doc.paragraphs):
         if "Validado com a Gerente" in p.text:
 
@@ -114,7 +113,7 @@ def gerar_doc(dados, fotos):
 
             doc.element.body.insert(i, table._element)
 
-            # ✅ CORREÇÃO DO ERRO 500
+            # ✅ proteção
             if i + 1 < len(doc.paragraphs):
                 doc.paragraphs[i+1].insert_paragraph_before("")
             else:
@@ -129,10 +128,9 @@ def gerar_doc(dados, fotos):
     return caminho
 
 # ========================
-# PDF PROFISSIONAL
+# PDF
 # ========================
 def gerar_pdf(dados, fotos):
-
     os.makedirs("temp", exist_ok=True)
     caminho = "temp/saida.pdf"
 
@@ -142,29 +140,27 @@ def gerar_pdf(dados, fotos):
     elementos = []
 
     elementos.append(Paragraph("<b>SMX TI - Chamado Técnico</b>", styles["Title"]))
-    elementos.append(Spacer(1, 20))
+    elementos.append(Spacer(1, 15))
 
-    tabela_dados = [
-        ["Protocolo", dados.get("{{PROTOCOLO}}", "")],
-        ["Loja", dados.get("{{LOJA}}", ""), "Local", dados.get("{{LOCAL}}", "")],
-        ["Atendente", dados.get("{{ATENDENTE}}", ""), "Técnico", dados.get("{{TECNICO}}", "")],
-        ["Data", dados.get("{{DATA}}", ""), "Horário", dados.get("{{HORARIO}}", "")],
-        ["Tempo", dados.get("{{TEMPO}}", "")]
-    ]
+    tabela = Table([
+        ["Protocolo", dados["{{PROTOCOLO}}"]],
+        ["Loja", dados["{{LOJA}}"], "Local", dados["{{LOCAL}}"]],
+        ["Atendente", dados["{{ATENDENTE}}"], "Técnico", dados["{{TECNICO}}"]],
+        ["Data", dados["{{DATA}}"], "Horário", dados["{{HORARIO}}"]],
+        ["Tempo", dados["{{TEMPO}}"]]
+    ])
 
-    tabela = Table(tabela_dados)
-    tabela.setStyle(TableStyle([
-        ("GRID", (0,0), (-1,-1), 1, colors.black),
-        ("ALIGN", (0,0), (-1,-1), "CENTER")
-    ]))
+    tabela.setStyle([
+        ("GRID", (0,0), (-1,-1), 1, colors.black)
+    ])
 
     elementos.append(tabela)
+    elementos.append(Spacer(1, 15))
+
+    elementos.append(Paragraph(dados["{{DESCRICAO}}"], styles["Normal"]))
     elementos.append(Spacer(1, 20))
 
-    elementos.append(Paragraph(dados.get("{{DESCRICAO}}", ""), styles["Normal"]))
-    elementos.append(Spacer(1, 20))
-
-    # fotos lado a lado
+    # fotos
     imgs = []
     for f in fotos:
         if os.path.exists(f):
@@ -177,19 +173,14 @@ def gerar_pdf(dados, fotos):
         if len(linha) == 2:
             linhas.append(linha)
             linha = []
-
     if linha:
         linhas.append(linha)
 
     if linhas:
         elementos.append(Table(linhas))
 
-    elementos.append(Spacer(1, 30))
-
-    elementos.append(Paragraph(
-        f"Validado com a Gerente {dados.get('{{GERENTE}}','')}",
-        styles["Normal"]
-    ))
+    elementos.append(Spacer(1, 20))
+    elementos.append(Paragraph(f"Validado com a Gerente {dados['{{GERENTE}}']}", styles["Normal"]))
 
     doc.build(elementos)
 
@@ -201,7 +192,6 @@ def gerar_pdf(dados, fotos):
 def montar_dados(form, data_fmt):
     inicio = form.get("inicio")
     fim = form.get("fim")
-    tempo = calcular_tempo(inicio, fim)
 
     return {
         "{{PROTOCOLO}}": form.get("protocolo"),
@@ -212,15 +202,15 @@ def montar_dados(form, data_fmt):
         "{{TECNICO}}": form.get("tecnico"),
         "{{DATA}}": data_fmt,
         "{{HORARIO}}": f"{inicio} as {fim}",
-        "{{TEMPO}}": tempo,
+        "{{TEMPO}}": calcular_tempo(inicio, fim),
         "{{GERENTE}}": form.get("gerente"),
         "{{DESCRICAO}}": form.get("descricao"),
     }
 
 def salvar_fotos(request):
     os.makedirs("temp", exist_ok=True)
-    fotos = []
 
+    fotos = []
     for f in request.files.getlist("fotos"):
         if f.filename:
             path = os.path.join("temp", f.filename)
@@ -238,12 +228,15 @@ def home():
 
 @app.route("/gerar", methods=["POST"])
 def gerar():
-    form = request.form
 
-    data_raw = form.get("data")
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y") if data_raw else ""
+    erro = validar_campos(request.form)
+    if erro:
+        return erro, 400
 
-    dados = montar_dados(form, data_fmt)
+    data_raw = request.form.get("data")
+    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+
+    dados = montar_dados(request.form, data_fmt)
     fotos = salvar_fotos(request)
 
     doc = gerar_doc(dados, fotos)
@@ -251,24 +244,25 @@ def gerar():
 
     nome = gerar_nome(dados)
 
-    return send_file(doc, as_attachment=True,
-                     download_name=f"{nome}.docx")
+    return send_file(doc, as_attachment=True, download_name=f"{nome}.docx")
 
 @app.route("/pdf", methods=["POST"])
 def pdf():
-    form = request.form
 
-    data_raw = form.get("data")
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y") if data_raw else ""
+    erro = validar_campos(request.form)
+    if erro:
+        return erro, 400
 
-    dados = montar_dados(form, data_fmt)
+    data_raw = request.form.get("data")
+    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+
+    dados = montar_dados(request.form, data_fmt)
     fotos = salvar_fotos(request)
 
     pdf_file = gerar_pdf(dados, fotos)
     nome = gerar_nome(dados)
 
-    return send_file(pdf_file, as_attachment=True,
-                     download_name=f"{nome}.pdf")
+    return send_file(pdf_file, as_attachment=True, download_name=f"{nome}.pdf")
 
 # ========================
 # START
