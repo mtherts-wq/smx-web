@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -85,8 +86,22 @@ button:hover {
 </style>
 
 <script>
-// ✅ validação
+// ✅ validação frontend
 function validar(){
+
+    let campos = [
+        "protocolo","titulo","atendente","local","tecnico",
+        "gerente","descricao","data","inicio","fim"
+    ];
+
+    for(let c of campos){
+        let campo = document.querySelector(`[name=${c}]`);
+        if(!campo.value){
+            alert("Preencha todos os campos obrigatórios");
+            return false;
+        }
+    }
+
     let i = document.querySelector("[name=inicio]").value;
     let f = document.querySelector("[name=fim]").value;
 
@@ -95,10 +110,11 @@ function validar(){
         return h*60 + parseInt(m);
     }
 
-    if(!i || !f || toMin(f) <= toMin(i)){
+    if(toMin(f) <= toMin(i)){
         alert("Hora fim deve ser maior!");
         return false;
     }
+
     return true;
 }
 
@@ -123,18 +139,16 @@ function gerarExcel(){
     window.location.href = "/excel?mes=" + mes;
 }
 
-// ✅ PDF nova aba
+// ✅ PDF download
 function gerarPDF(){
     let form = document.getElementById("formRAT");
 
     form.action = "/pdf";
-    form.target = "_blank";
+    form.target = "_self";
 
     form.submit();
 
-    // volta ao padrão
     form.action = "/gerar";
-    form.target = "_self";
 }
 </script>
 
@@ -146,7 +160,6 @@ function gerarPDF(){
 
 <h2>Gerador RAT</h2>
 
-<!-- ✅ FORM CORRETO -->
 <form id="formRAT"
       action="/gerar"
       method="post"
@@ -178,13 +191,11 @@ function gerarPDF(){
 
 <input type="file" name="fotos" multiple>
 
-<!-- ✅ BOTÕES PRINCIPAIS -->
 <div class="row">
     <button type="submit">Gerar</button>
     <button type="button" onclick="abrirModal()">Relatório Mês</button>
 </div>
 
-<!-- ✅ BOTÕES SECUNDÁRIOS -->
 <div class="row">
     <button type="button" onclick="gerarPDF()">Gerar PDF</button>
     <button type="reset">Reset</button>
@@ -192,7 +203,6 @@ function gerarPDF(){
 
 </form>
 
-<!-- ✅ MODAL -->
 <div id="modal" class="modal">
 
     <div class="modal-box">
@@ -213,4 +223,6 @@ function gerarPDF(){
 </div>
 
 </body>
+
 </html>
+``

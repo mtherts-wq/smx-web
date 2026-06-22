@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, abort
+from flask import Flask, render_template, request, send_file
 from docx import Document
 from docx.shared import Cm
 from datetime import datetime
@@ -37,7 +37,7 @@ def validar_campos(form):
 
     for campo in campos:
         if not form.get(campo):
-            return f"Campo obrigatório não preenchido: {campo}"
+            return f"Campo obrigatório: {campo}"
 
     return None
 
@@ -61,18 +61,16 @@ def gerar_nome(dados):
     return f"{base}_{data_fmt}"
 
 # ========================
-# SUBSTITUIR CAMPOS ✅ FIX
+# SUBSTITUIR CAMPOS (CORRETO)
 # ========================
 def substituir_campos(doc, dados):
 
-    # Parágrafos
     for p in doc.paragraphs:
         for k, v in dados.items():
             if k in p.text:
                 for run in p.runs:
                     run.text = run.text.replace(k, str(v or ""))
 
-    # Tabelas
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
@@ -92,10 +90,8 @@ def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    # ✅ substituição corrigida
     substituir_campos(doc, dados)
 
-    # ✅ fotos antes do gerente
     for i, p in enumerate(doc.paragraphs):
         if "Validado com a Gerente" in p.text:
 
@@ -113,7 +109,6 @@ def gerar_doc(dados, fotos):
 
             doc.element.body.insert(i, table._element)
 
-            # ✅ proteção
             if i + 1 < len(doc.paragraphs):
                 doc.paragraphs[i+1].insert_paragraph_before("")
             else:
@@ -131,6 +126,7 @@ def gerar_doc(dados, fotos):
 # PDF
 # ========================
 def gerar_pdf(dados, fotos):
+
     os.makedirs("temp", exist_ok=True)
     caminho = "temp/saida.pdf"
 
@@ -150,9 +146,9 @@ def gerar_pdf(dados, fotos):
         ["Tempo", dados["{{TEMPO}}"]]
     ])
 
-    tabela.setStyle([
+    tabela.setStyle(TableStyle([
         ("GRID", (0,0), (-1,-1), 1, colors.black)
-    ])
+    ]))
 
     elementos.append(tabela)
     elementos.append(Spacer(1, 15))
@@ -173,6 +169,7 @@ def gerar_pdf(dados, fotos):
         if len(linha) == 2:
             linhas.append(linha)
             linha = []
+
     if linha:
         linhas.append(linha)
 
@@ -180,7 +177,10 @@ def gerar_pdf(dados, fotos):
         elementos.append(Table(linhas))
 
     elementos.append(Spacer(1, 20))
-    elementos.append(Paragraph(f"Validado com a Gerente {dados['{{GERENTE}}']}", styles["Normal"]))
+
+    elementos.append(
+        Paragraph(f"Validado com a Gerente {dados['{{GERENTE}}']}", styles["Normal"])
+    )
 
     doc.build(elementos)
 
@@ -209,8 +209,8 @@ def montar_dados(form, data_fmt):
 
 def salvar_fotos(request):
     os.makedirs("temp", exist_ok=True)
-
     fotos = []
+
     for f in request.files.getlist("fotos"):
         if f.filename:
             path = os.path.join("temp", f.filename)
@@ -234,14 +234,15 @@ def gerar():
         return erro, 400
 
     data_raw = request.form.get("data")
+    if not data_raw:
+        return "Data obrigatória", 400
+
     data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
     dados = montar_dados(request.form, data_fmt)
     fotos = salvar_fotos(request)
 
     doc = gerar_doc(dados, fotos)
-    salvar_historico(dados)
-
     nome = gerar_nome(dados)
 
     return send_file(doc, as_attachment=True, download_name=f"{nome}.docx")
@@ -254,6 +255,9 @@ def pdf():
         return erro, 400
 
     data_raw = request.form.get("data")
+    if not data_raw:
+        return "Data obrigatória", 400
+
     data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
     dados = montar_dados(request.form, data_fmt)
