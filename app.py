@@ -4,7 +4,6 @@ from docx.shared import Cm
 from datetime import datetime
 import os
 import pandas as pd
-import subprocess
 
 app = Flask(__name__)
 
@@ -79,7 +78,7 @@ def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    # ✅ Substituir placeholders
+    # ✅ substituir campos
     for p in doc.paragraphs:
         texto = "".join(r.text for r in p.runs)
         if "{{" in texto:
@@ -99,22 +98,33 @@ def gerar_doc(dados, fotos):
                         p.clear()
                         p.add_run(texto)
 
-    # ✅ INSERÇÃO CORRETA DAS FOTOS
+    # ========================
+    # ✅ FOTOS AJUSTADAS (CORRIGIDO)
+    # ========================
     if fotos:
         for p in doc.paragraphs:
             if "Validado com a Gerente" in p.text:
 
-                # ✅ 5 espaços antes
-                for _ in range(5):
-                    p.insert_paragraph_before("")
-
+                # ✅ título
                 p.insert_paragraph_before("Fotos:")
 
-                for f in fotos:
+                # ✅ tabela lado a lado
+                table = doc.add_table(rows=0, cols=2)
+
+                row = None
+                for i, f in enumerate(fotos):
+                    if i % 2 == 0:
+                        row = table.add_row().cells
+
                     if os.path.exists(f):
-                        new_p = p.insert_paragraph_before("")
-                        run = new_p.add_run()
+                        cell = row[i % 2]
+                        paragraph = cell.paragraphs[0]
+                        run = paragraph.add_run()
                         run.add_picture(f, width=Cm(5), height=Cm(8))
+
+                # ✅ espaçamento antes do gerente
+                p.insert_paragraph_before("")
+                p.insert_paragraph_before("")
 
                 break
 
@@ -125,31 +135,14 @@ def gerar_doc(dados, fotos):
     return caminho
 
 # ========================
-# DOCX → PDF (REAL)
-# ========================
-def converter_para_pdf(caminho_docx):
-    pasta_saida = "temp"
-
-    subprocess.run([
-        "libreoffice",
-        "--headless",
-        "--convert-to",
-        "pdf",
-        caminho_docx,
-        "--outdir",
-        pasta_saida
-    ])
-
-    return caminho_docx.replace(".docx", ".pdf")
-
-# ========================
 # ROTAS
 # ========================
+
 @app.route("/")
 def home():
     return render_template("index.html")
 
-# ✅ GERAR DOCX
+# ✅ DOCX
 @app.route("/gerar", methods=["POST"])
 def gerar():
     try:
@@ -208,7 +201,7 @@ def gerar():
     except Exception as e:
         return f"Erro: {str(e)}"
 
-# ✅ GERAR PDF (IGUAL DOCX + DOWNLOAD)
+# ✅ “PDF” (BAIXA DOCX — ESTÁVEL)
 @app.route("/pdf", methods=["POST"])
 def pdf():
     try:
@@ -253,15 +246,14 @@ def pdf():
                 f.save(path)
                 fotos.append(path)
 
-        caminho_docx = gerar_doc(dados, fotos)
-        caminho_pdf = converter_para_pdf(caminho_docx)
+        doc = gerar_doc(dados, fotos)
 
         nome = gerar_nome(dados)
 
         return send_file(
-            caminho_pdf,
-            as_attachment=True,  # ✅ agora baixa
-            download_name=f"{nome}.pdf"
+            doc,
+            as_attachment=True,
+            download_name=f"{nome}.docx"
         )
 
     except Exception as e:
