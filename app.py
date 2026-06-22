@@ -4,6 +4,7 @@ from docx.shared import Cm
 from datetime import datetime
 import os
 import pandas as pd
+import subprocess
 
 app = Flask(__name__)
 
@@ -78,7 +79,7 @@ def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    # ✅ substituir campos
+    # ✅ Substitui campos
     for p in doc.paragraphs:
         texto = "".join(r.text for r in p.runs)
         if "{{" in texto:
@@ -99,32 +100,31 @@ def gerar_doc(dados, fotos):
                         p.add_run(texto)
 
     # ========================
-    # ✅ FOTOS AJUSTADAS (CORRIGIDO)
+    # ✅ INSERIR FOTOS NO LUGAR CORRETO
     # ========================
     if fotos:
-        for p in doc.paragraphs:
+        for i, p in enumerate(doc.paragraphs):
             if "Validado com a Gerente" in p.text:
 
-                # ✅ título
-                p.insert_paragraph_before("Fotos:")
-
-                # ✅ tabela lado a lado
+                # ✅ cria tabela imagens
                 table = doc.add_table(rows=0, cols=2)
 
                 row = None
-                for i, f in enumerate(fotos):
-                    if i % 2 == 0:
+                for idx, f in enumerate(fotos):
+                    if idx % 2 == 0:
                         row = table.add_row().cells
 
                     if os.path.exists(f):
-                        cell = row[i % 2]
+                        cell = row[idx % 2]
                         paragraph = cell.paragraphs[0]
                         run = paragraph.add_run()
                         run.add_picture(f, width=Cm(5), height=Cm(8))
 
-                # ✅ espaçamento antes do gerente
-                p.insert_paragraph_before("")
-                p.insert_paragraph_before("")
+                # ✅ INSERE ANTES DO PARÁGRAFO DO GERENTE
+                doc.element.body.insert(i, table._element)
+
+                # ✅ ESPAÇO entre fotos e gerente
+                doc.paragraphs[i+1].insert_paragraph_before("")
 
                 break
 
@@ -133,6 +133,21 @@ def gerar_doc(dados, fotos):
     doc.save(caminho)
 
     return caminho
+
+# ========================
+# DOCX → PDF REAL
+# ========================
+def converter_para_pdf(caminho_docx):
+    subprocess.run([
+        "libreoffice",
+        "--headless",
+        "--convert-to",
+        "pdf",
+        caminho_docx,
+        "--outdir",
+        "temp"
+    ])
+    return caminho_docx.replace(".docx", ".pdf")
 
 # ========================
 # ROTAS
@@ -150,18 +165,14 @@ def gerar():
 
         data_raw = form.get("data")
         if data_raw:
-            try:
-                data_fmt = datetime.strptime(
-                    data_raw, "%Y-%m-%d"
-                ).strftime("%d/%m/%Y")
-            except:
-                data_fmt = ""
+            data_fmt = datetime.strptime(
+                data_raw, "%Y-%m-%d"
+            ).strftime("%d/%m/%Y")
         else:
             data_fmt = ""
 
         inicio = form.get("inicio")
         fim = form.get("fim")
-
         tempo = calcular_tempo(inicio, fim)
 
         dados = {
@@ -172,7 +183,7 @@ def gerar():
             "{{LOCAL}}": form.get("local"),
             "{{TECNICO}}": form.get("tecnico"),
             "{{DATA}}": data_fmt,
-            "{{HORARIO}}": f"{inicio} as {fim}" if inicio and fim else "",
+            "{{HORARIO}}": f"{inicio} as {fim}",
             "{{TEMPO}}": tempo,
             "{{GERENTE}}": form.get("gerente"),
             "{{DESCRICAO}}": form.get("descricao"),
@@ -192,16 +203,13 @@ def gerar():
 
         nome = gerar_nome(dados)
 
-        return send_file(
-            doc,
-            as_attachment=True,
-            download_name=f"{nome}.docx"
-        )
+        return send_file(doc, as_attachment=True,
+                         download_name=f"{nome}.docx")
 
     except Exception as e:
         return f"Erro: {str(e)}"
 
-# ✅ “PDF” (BAIXA DOCX — ESTÁVEL)
+# ✅ PDF REAL
 @app.route("/pdf", methods=["POST"])
 def pdf():
     try:
@@ -209,18 +217,14 @@ def pdf():
 
         data_raw = form.get("data")
         if data_raw:
-            try:
-                data_fmt = datetime.strptime(
-                    data_raw, "%Y-%m-%d"
-                ).strftime("%d/%m/%Y")
-            except:
-                data_fmt = ""
+            data_fmt = datetime.strptime(
+                data_raw, "%Y-%m-%d"
+            ).strftime("%d/%m/%Y")
         else:
             data_fmt = ""
 
         inicio = form.get("inicio")
         fim = form.get("fim")
-
         tempo = calcular_tempo(inicio, fim)
 
         dados = {
@@ -231,7 +235,7 @@ def pdf():
             "{{LOCAL}}": form.get("local"),
             "{{TECNICO}}": form.get("tecnico"),
             "{{DATA}}": data_fmt,
-            "{{HORARIO}}": f"{inicio} as {fim}" if inicio and fim else "",
+            "{{HORARIO}}": f"{inicio} as {fim}",
             "{{TEMPO}}": tempo,
             "{{GERENTE}}": form.get("gerente"),
             "{{DESCRICAO}}": form.get("descricao"),
@@ -248,13 +252,13 @@ def pdf():
 
         doc = gerar_doc(dados, fotos)
 
+        pdf_file = converter_para_pdf(doc)
+
         nome = gerar_nome(dados)
 
-        return send_file(
-            doc,
-            as_attachment=True,
-            download_name=f"{nome}.docx"
-        )
+        return send_file(pdf_file,
+                         as_attachment=True,
+                         download_name=f"{nome}.pdf")
 
     except Exception as e:
         return f"Erro PDF: {str(e)}"
