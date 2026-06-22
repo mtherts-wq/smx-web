@@ -4,12 +4,13 @@ from docx.shared import Cm
 from datetime import datetime
 import os
 import pandas as pd
-
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+import requests
+import time
 
 app = Flask(__name__)
+
+# 🔥 COLOQUE SUA API KEY AQUI
+API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiNmY0YWU3MzAyMjk0YTMzMTg5ZmNiMTUzYzg0Mjg0MjJhMjViNzgwYWZkMjFkN2FmMTliY2E1YjlmNjg5NjNiMzVkZWNjNjYzZWFiM2JhYzAiLCJpYXQiOjE3ODIxNjYwNDcuMjM2MzEyLCJuYmYiOjE3ODIxNjYwNDcuMjM2MzEzLCJleHAiOjQ5Mzc4Mzk2NDcuMjMxMzU3LCJzdWIiOiI3NjA2OTMyOSIsInNjb3BlcyI6WyJ0YXNrLnJlYWQiLCJ0YXNrLndyaXRlIl19.gXK-freAXtMNbA74Wd7NBBGdoaLXK_Mb36tv2HfAcB9He1tRk75JDU5cdl0NIzkcriAp1CINPbmNENTZGSPqh-cV4fw0DXz0SAimUVXiBp2a5edZ8XRp9Lv2fxuzTYR8Gnq9WT-How-ZNANU2jaVJDAFeRWsrw0eqC1g5ZXUOyAWQdi4vo9c1tlk2xGTrLnJbQ-zEdCEpelPYb9JaBvWr_n-jWi9hQ6_OEKLab9ktcvFfy3abi7Xlc58lSUjwSn7W2bqs8wPpMnCWqnL--fCmkI9QNwNLx8b6a24xKzyh3CBKGb7-1sZdDwOoVUMwMN13rczMwmgpcKRfp_u-HkvTsrVzzhj5B-a8QTUV0QHIeb7mils3hOhuK4vyHUw2QUGcsulNX0Vu_6xO5A2Wy-ZeZXNzcs8wdmORgshgqXVsQQaOog2KpDdIkeVG839G1b2Qx6sM4Wynou6oYZqETE14JIwjlNU04fERBzUHhAL59EEI6wq-P3xBKj6GoCAHfmYnjpAIAxQSohuWNREM4jeP_ZFaYOXvi-IdaxOmZ5oAgJwghe9c-1PCNKArMhKda8z7Zf42O7KQ4VBWjo2GlZjN-PIAzmK2rmaMvW8xNTDbHhTRHhwyYk9jKgCsHonGOtJ_PKaavA1lh18lcLXFjLg7b_P2YDkM41645VvmLS3hSs"
 
 # ========================
 # TEMPO
@@ -30,190 +31,187 @@ def calcular_tempo(inicio, fim):
 # ========================
 def validar_campos(form):
     campos = [
-        "protocolo", "titulo", "atendente", "loja",
-        "local", "tecnico", "data", "inicio",
-        "fim", "gerente", "descricao"
+        "protocolo","titulo","atendente","loja",
+        "local","tecnico","data","inicio",
+        "fim","gerente","descricao"
     ]
 
     for campo in campos:
         if not form.get(campo):
             return f"Campo obrigatório: {campo}"
-
     return None
 
 # ========================
 # NOME
 # ========================
 def gerar_nome(dados):
-    data = dados.get("{{DATA}}", "")
-    loja = dados.get("{{LOJA}}", "")
-    local = dados.get("{{LOCAL}}", "")
+    data = dados.get("{{DATA}}","")
+    loja = dados.get("{{LOJA}}","")
+    local = dados.get("{{LOCAL}}","")
 
     try:
-        dt = datetime.strptime(data, "%d/%m/%Y")
+        dt = datetime.strptime(data,"%d/%m/%Y")
         data_fmt = dt.strftime("%d%m")
     except:
         data_fmt = "0000"
 
-    base = local if loja and loja.strip().upper() == "ZARA" else loja
-    base = (base or "arquivo").replace(" ", "_")
+    base = local if loja.upper()=="ZARA" else loja
+    base = (base or "arquivo").replace(" ","_")
 
     return f"{base}_{data_fmt}"
 
 # ========================
-# SUBSTITUIR CAMPOS (CORRETO)
+# SUBSTITUIR CAMPOS
 # ========================
-def substituir_campos(doc, dados):
+def substituir_campos(doc,dados):
 
     for p in doc.paragraphs:
-        for k, v in dados.items():
+        for k,v in dados.items():
             if k in p.text:
                 for run in p.runs:
-                    run.text = run.text.replace(k, str(v or ""))
+                    run.text = run.text.replace(k,str(v or ""))
 
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    for k, v in dados.items():
+    for t in doc.tables:
+        for r in t.rows:
+            for c in r.cells:
+                for p in c.paragraphs:
+                    for k,v in dados.items():
                         if k in p.text:
                             for run in p.runs:
-                                run.text = run.text.replace(k, str(v or ""))
+                                run.text = run.text.replace(k,str(v or ""))
 
 # ========================
 # DOCX
 # ========================
-def gerar_doc(dados, fotos):
-
-    if not os.path.exists("MODELO_RAT.docx"):
-        raise Exception("MODELO_RAT.docx não encontrado")
+def gerar_doc(dados,fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    substituir_campos(doc, dados)
+    substituir_campos(doc,dados)
 
-    for i, p in enumerate(doc.paragraphs):
+    for i,p in enumerate(doc.paragraphs):
         if "Validado com a Gerente" in p.text:
 
-            table = doc.add_table(rows=0, cols=2)
+            table = doc.add_table(rows=0,cols=2)
 
             row = None
-            for idx, f in enumerate(fotos):
+            for idx,f in enumerate(fotos):
                 if idx % 2 == 0:
                     row = table.add_row().cells
 
                 if os.path.exists(f):
                     cell = row[idx % 2]
                     run = cell.paragraphs[0].add_run()
-                    run.add_picture(f, width=Cm(5), height=Cm(8))
+                    run.add_picture(f,width=Cm(5),height=Cm(8))
 
-            doc.element.body.insert(i, table._element)
+            doc.element.body.insert(i,table._element)
 
-            if i + 1 < len(doc.paragraphs):
+            if i+1 < len(doc.paragraphs):
                 doc.paragraphs[i+1].insert_paragraph_before("")
             else:
                 doc.add_paragraph("")
 
             break
 
-    os.makedirs("temp", exist_ok=True)
-    caminho = "temp/saida.docx"
-    doc.save(caminho)
+    os.makedirs("temp",exist_ok=True)
+    path = "temp/saida.docx"
+    doc.save(path)
 
-    return caminho
-
-# ========================
-# PDF
-# ========================
-def gerar_pdf(dados, fotos):
-
-    os.makedirs("temp", exist_ok=True)
-    caminho = "temp/saida.pdf"
-
-    doc = SimpleDocTemplate(caminho)
-    styles = getSampleStyleSheet()
-
-    elementos = []
-
-    elementos.append(Paragraph("<b>SMX TI - Chamado Técnico</b>", styles["Title"]))
-    elementos.append(Spacer(1, 15))
-
-    tabela = Table([
-        ["Protocolo", dados["{{PROTOCOLO}}"]],
-        ["Loja", dados["{{LOJA}}"], "Local", dados["{{LOCAL}}"]],
-        ["Atendente", dados["{{ATENDENTE}}"], "Técnico", dados["{{TECNICO}}"]],
-        ["Data", dados["{{DATA}}"], "Horário", dados["{{HORARIO}}"]],
-        ["Tempo", dados["{{TEMPO}}"]]
-    ])
-
-    tabela.setStyle(TableStyle([
-        ("GRID", (0,0), (-1,-1), 1, colors.black)
-    ]))
-
-    elementos.append(tabela)
-    elementos.append(Spacer(1, 15))
-
-    elementos.append(Paragraph(dados["{{DESCRICAO}}"], styles["Normal"]))
-    elementos.append(Spacer(1, 20))
-
-    # fotos
-    imgs = []
-    for f in fotos:
-        if os.path.exists(f):
-            imgs.append(Image(f, width=150, height=200))
-
-    linhas = []
-    linha = []
-    for img in imgs:
-        linha.append(img)
-        if len(linha) == 2:
-            linhas.append(linha)
-            linha = []
-
-    if linha:
-        linhas.append(linha)
-
-    if linhas:
-        elementos.append(Table(linhas))
-
-    elementos.append(Spacer(1, 20))
-
-    elementos.append(
-        Paragraph(f"Validado com a Gerente {dados['{{GERENTE}}']}", styles["Normal"])
-    )
-
-    doc.build(elementos)
-
-    return caminho
+    return path
 
 # ========================
-# AUXILIARES
+# CLOUDCONVERT
 # ========================
-def montar_dados(form, data_fmt):
+def converter_pdf(doc_path):
+
+    response = requests.post(
+        "https://api.cloudconvert.com/v2/jobs",
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "tasks":{
+                "upload":{
+                    "operation":"import/upload"
+                },
+                "convert":{
+                    "operation":"convert",
+                    "input":"upload",
+                    "output_format":"pdf"
+                },
+                "export":{
+                    "operation":"export/url",
+                    "input":"convert"
+                }
+            }
+        }
+    ).json()
+
+    upload_task = next(t for t in response["data"]["tasks"] if t["name"]=="upload")
+
+    upload_url = upload_task["result"]["form"]["url"]
+    upload_params = upload_task["result"]["form"]["parameters"]
+
+    with open(doc_path,"rb") as f:
+        requests.post(upload_url,data=upload_params,files={"file":f})
+
+    job_id = response["data"]["id"]
+
+    # espera conversão
+    while True:
+        job_status = requests.get(
+            f"https://api.cloudconvert.com/v2/jobs/{job_id}",
+            headers={"Authorization":f"Bearer {API_KEY}"}
+        ).json()
+
+        if job_status["data"]["status"]=="finished":
+            break
+
+        time.sleep(2)
+
+    export = next(t for t in job_status["data"]["tasks"] if t["name"]=="export")
+
+    file_url = export["result"]["files"][0]["url"]
+
+    pdf_path = doc_path.replace(".docx",".pdf")
+
+    pdf_bytes = requests.get(file_url).content
+
+    with open(pdf_path,"wb") as f:
+        f.write(pdf_bytes)
+
+    return pdf_path
+
+# ========================
+# AUX
+# ========================
+def montar_dados(form,data_fmt):
+
     inicio = form.get("inicio")
     fim = form.get("fim")
 
     return {
-        "{{PROTOCOLO}}": form.get("protocolo"),
-        "{{TITULO}}": form.get("titulo"),
-        "{{ATENDENTE}}": form.get("atendente"),
-        "{{LOJA}}": form.get("loja"),
-        "{{LOCAL}}": form.get("local"),
-        "{{TECNICO}}": form.get("tecnico"),
-        "{{DATA}}": data_fmt,
-        "{{HORARIO}}": f"{inicio} as {fim}",
-        "{{TEMPO}}": calcular_tempo(inicio, fim),
-        "{{GERENTE}}": form.get("gerente"),
-        "{{DESCRICAO}}": form.get("descricao"),
+        "{{PROTOCOLO}}":form.get("protocolo"),
+        "{{TITULO}}":form.get("titulo"),
+        "{{ATENDENTE}}":form.get("atendente"),
+        "{{LOJA}}":form.get("loja"),
+        "{{LOCAL}}":form.get("local"),
+        "{{TECNICO}}":form.get("tecnico"),
+        "{{DATA}}":data_fmt,
+        "{{HORARIO}}":f"{inicio} as {fim}",
+        "{{TEMPO}}":calcular_tempo(inicio,fim),
+        "{{GERENTE}}":form.get("gerente"),
+        "{{DESCRICAO}}":form.get("descricao"),
     }
 
 def salvar_fotos(request):
-    os.makedirs("temp", exist_ok=True)
-    fotos = []
+    os.makedirs("temp",exist_ok=True)
 
+    fotos=[]
     for f in request.files.getlist("fotos"):
         if f.filename:
-            path = os.path.join("temp", f.filename)
+            path=os.path.join("temp",f.filename)
             f.save(path)
             fotos.append(path)
 
@@ -226,50 +224,49 @@ def salvar_fotos(request):
 def home():
     return render_template("index.html")
 
-@app.route("/gerar", methods=["POST"])
+@app.route("/gerar",methods=["POST"])
 def gerar():
 
     erro = validar_campos(request.form)
     if erro:
-        return erro, 400
+        return erro,400
 
     data_raw = request.form.get("data")
-    if not data_raw:
-        return "Data obrigatória", 400
+    data_fmt = datetime.strptime(data_raw,"%Y-%m-%d").strftime("%d/%m/%Y")
 
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
-
-    dados = montar_dados(request.form, data_fmt)
+    dados = montar_dados(request.form,data_fmt)
     fotos = salvar_fotos(request)
 
-    doc = gerar_doc(dados, fotos)
+    doc = gerar_doc(dados,fotos)
     nome = gerar_nome(dados)
 
-    return send_file(doc, as_attachment=True, download_name=f"{nome}.docx")
+    return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
 
-@app.route("/pdf", methods=["POST"])
+@app.route("/pdf",methods=["POST"])
 def pdf():
 
     erro = validar_campos(request.form)
     if erro:
-        return erro, 400
+        return erro,400
 
     data_raw = request.form.get("data")
-    if not data_raw:
-        return "Data obrigatória", 400
+    data_fmt = datetime.strptime(data_raw,"%Y-%m-%d").strftime("%d/%m/%Y")
 
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
-
-    dados = montar_dados(request.form, data_fmt)
+    dados = montar_dados(request.form,data_fmt)
     fotos = salvar_fotos(request)
 
-    pdf_file = gerar_pdf(dados, fotos)
+    doc = gerar_doc(dados,fotos)
     nome = gerar_nome(dados)
 
-    return send_file(pdf_file, as_attachment=True, download_name=f"{nome}.pdf")
+    try:
+        pdf = converter_pdf(doc)
+        return send_file(pdf,as_attachment=True,download_name=f"{nome}.pdf")
+    except Exception as e:
+        # ✅ fallback seguro
+        return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
 
 # ========================
 # START
 # ========================
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=10000)
