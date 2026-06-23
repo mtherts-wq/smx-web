@@ -192,16 +192,23 @@ function gerarPDF(){
 <input type="file" name="fotos" multiple>
 
 <div class="row">
-    <button type="submit">Gerar</button>
-    <button type="button" onclick="abrirModal()">Relatório Mês</button>
-</div>
+    <button type="submit">Gerar DOC</button>
 
+    <button type="submit"
+            formaction="/pdf"
+            formmethod="post">
+        Gerar PDF
+    </button>
+</div>
 <div class="row">
-    <button type="button" onclick="gerarPDF()">Gerar PDF</button>
+    <button type="button" onclick="abrirModal()">Relatório Mês</button>
     <button type="reset">Reset</button>
 </div>
 
+
 </form>
+
+
 
 <div id="modal" class="modal">
 
