@@ -167,30 +167,36 @@ def converter_pdf(doc_path):
     if not API_KEY:
         raise Exception("API_KEY não configurada no Render")
 
+    with open(doc_path, "rb") as f:
+        response = requests.post(
+            "https://v2.convertapi.com/convert/docx/to/pdf",
+            params={"Secret": API_KEY},
+            files={"File": f}
+        )
+
+    # 🔥 DEBUG IMPORTANTE
     try:
-        with open(doc_path, "rb") as f:
-            response = requests.post(
-                "https://v2.convertapi.com/convert/docx/to/pdf",
-                params={"Secret": API_KEY},
-                files={"File": f}
-            )
-
-        response.raise_for_status()
         result = response.json()
+    except Exception:
+        raise Exception(f"Resposta inválida da API: {response.text}")
 
-        pdf_url = result["Files"][0]["Url"]
-        pdf_bytes = requests.get(pdf_url).content
+    # 🔥 SE DER ERRO, MOSTRA O MOTIVO REAL
+    if "Files" not in result:
+        raise Exception(f"Erro ConvertAPI retorno inesperado: {result}")
 
-        pdf_path = doc_path.replace(".docx", ".pdf")
+    pdf_url = result["Files"][0].get("Url")
 
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_bytes)
+    if not pdf_url:
+        raise Exception(f"ConvertAPI não retornou URL: {result}")
 
-        return pdf_path
+    pdf_bytes = requests.get(pdf_url).content
 
-    except Exception as e:
-        raise Exception(f"Erro ConvertAPI: {str(e)}")
+    pdf_path = doc_path.replace(".docx", ".pdf")
 
+    with open(pdf_path, "wb") as f:
+        f.write(pdf_bytes)
+
+    return pdf_path
 
 # ========================
 # DADOS
