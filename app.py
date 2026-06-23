@@ -235,27 +235,26 @@ def gerar():
 
     return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
 
-@app.route("/pdf",methods=["POST"])
-def pdf():
+@app.route("/gerar-pdf", methods=["POST"])
+def gerar_pdf():
+    docx_path = gerar_docx()
 
-    erro = validar_campos(request.form)
-    if erro:
-        return erro,400
+    result = convertapi.convert(
+        "pdf",
+        {"File": docx_path},
+        from_format="docx"
+    )
 
-    data_raw = request.form.get("data")
-    data_fmt = datetime.strptime(data_raw,"%Y-%m-%d").strftime("%d/%m/%Y")
+    pdf_path = f"/tmp/arquivo.pdf"
+    result.file.save(pdf_path)
 
-    dados = montar_dados(request.form,data_fmt)
-    fotos = salvar_fotos(request)
+    return send_file(
+        pdf_path,
+        as_attachment=True,
+        download_name="arquivo.pdf",
+        mimetype="application/pdf"
+    )
 
-    doc = gerar_doc(dados,fotos)
-    nome = gerar_nome(dados)
-
-    try:
-        pdf = converter_pdf(doc)
-        return send_file(pdf,as_attachment=True,download_name=f"{nome}.pdf")
-    except:
-        return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
 
 @app.route("/excel")
 def excel():
