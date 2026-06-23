@@ -10,6 +10,7 @@ import subprocess
 
 app = Flask(__name__)
 
+API_KEY = os.environ.get("API_KEY")
 
 # ========================
 # TEMPO
@@ -63,7 +64,7 @@ def gerar_nome(dados):
     return f"{base}_{data_fmt}"
 
 # ========================
-# HISTORICO ✅
+# HISTORICO
 # ========================
 def salvar_historico(dados):
 
@@ -149,19 +150,25 @@ def gerar_doc(dados,fotos):
     return path
 
 # ========================
-# CLOUDCONVERT
+# API CONVERTAPI
 # ========================
 def converter_pdf(doc_path):
+    with open(doc_path, "rb") as f:
+        response = requests.post(
+            "https://v2.convertapi.com/convert/docx/to/pdf",
+            params={"Secret": API_KEY},
+            files={"File": f}
+        )
+
+    result = response.json()
+
+    pdf_url = result["Files"][0]["Url"]
     pdf_path = doc_path.replace(".docx", ".pdf")
 
-    # Executa a conversão com LibreOffice
-    subprocess.run([
-        "libreoffice",
-        "--headless",
-        "--convert-to", "pdf",
-        "--outdir", os.path.dirname(doc_path),
-        doc_path
-    ], check=True)
+    pdf_bytes = requests.get(pdf_url).content
+
+    with open(pdf_path, "wb") as f:
+        f.write(pdf_bytes)
 
     return pdf_path
 
