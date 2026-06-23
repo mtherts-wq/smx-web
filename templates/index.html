@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html>
-
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <title>Gerador RAT</title>
 
 <style>
@@ -35,9 +33,7 @@ input, textarea, select {
     border:1px solid #444;
 }
 
-textarea {
-    height:100px;
-}
+textarea { height:100px; }
 
 .row {
     display:flex;
@@ -86,7 +82,7 @@ button:hover {
 </style>
 
 <script>
-// ✅ validação frontend
+
 function validar(){
 
     let campos = [
@@ -118,7 +114,6 @@ function validar(){
     return true;
 }
 
-// ✅ modal
 function abrirModal(){
     document.getElementById("modal").style.display="flex";
 }
@@ -127,7 +122,6 @@ function fecharModal(){
     document.getElementById("modal").style.display="none";
 }
 
-// ✅ excel
 function gerarExcel(){
     let mes = document.getElementById("mes").value;
 
@@ -139,17 +133,68 @@ function gerarExcel(){
     window.location.href = "/excel?mes=" + mes;
 }
 
-// ✅ PDF download
-function gerarPDF(){
-    let form = document.getElementById("formRAT");
+/* =========================
+   AJAX DOWNLOAD (NOVO)
+========================= */
 
-    form.action = "/pdf";
-    form.target = "_self";
-
-    form.submit();
-
-    form.action = "/gerar";
+function getFormData(){
+    return new FormData(document.getElementById("formRAT"));
 }
+
+async function gerarDOC(){
+
+    if(!validar()) return;
+
+    let res = await fetch("/gerar", {
+        method: "POST",
+        body: getFormData()
+    });
+
+    if(!res.ok){
+        alert("Erro ao gerar DOC");
+        return;
+    }
+
+    let blob = await res.blob();
+    let url = window.URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "RAT.docx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.URL.revokeObjectURL(url);
+}
+
+async function gerarPDF(){
+
+    if(!validar()) return;
+
+    let res = await fetch("/pdf", {
+        method: "POST",
+        body: getFormData()
+    });
+
+    if(!res.ok){
+        alert("Erro ao gerar PDF");
+        return;
+    }
+
+    let blob = await res.blob();
+    let url = window.URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "RAT.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.URL.revokeObjectURL(url);
+}
+
 </script>
 
 </head>
@@ -164,7 +209,7 @@ function gerarPDF(){
       action="/gerar"
       method="post"
       enctype="multipart/form-data"
-      onsubmit="return validar()">
+      onsubmit="return false">
 
 <input name="protocolo" placeholder="Protocolo">
 <input name="titulo" placeholder="Título">
@@ -192,13 +237,8 @@ function gerarPDF(){
 <input type="file" name="fotos" multiple>
 
 <div class="row">
-    <button type="submit">Gerar DOC</button>
-
-    <button type="submit"
-            formaction="/pdf"
-            formmethod="post">
-        Gerar PDF
-    </button>
+    <button type="button" onclick="gerarDOC()">Gerar DOC</button>
+    <button type="button" onclick="gerarPDF()">Gerar PDF</button>
 </div>
 
 <div class="row">
@@ -208,28 +248,19 @@ function gerarPDF(){
 
 </form>
 
-
-
 <div id="modal" class="modal">
-
     <div class="modal-box">
-
         <h3>Selecionar Mês</h3>
-
         <input type="month" id="mes">
 
         <div class="modal-buttons">
             <button type="button" onclick="gerarExcel()">Gerar</button>
             <button type="button" onclick="fecharModal()">Cancelar</button>
         </div>
-
     </div>
-
 </div>
 
 </div>
 
 </body>
-
 </html>
-``

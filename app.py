@@ -5,12 +5,11 @@ from datetime import datetime
 import os
 import pandas as pd
 import requests
-import time
-import subprocess
 
 app = Flask(__name__)
 
 API_KEY = os.environ.get("API_KEY")
+
 
 # ========================
 # TEMPO
@@ -26,6 +25,7 @@ def calcular_tempo(inicio, fim):
     except:
         return "00:00"
 
+
 # ========================
 # VALIDAÇÃO
 # ========================
@@ -35,13 +35,14 @@ def validar_campos(form):
         "local","tecnico","data","inicio",
         "fim","gerente","descricao"
     ]
-    for campo in campos:
-        if not form.get(campo):
-            return f"Campo obrigatório: {campo}"
+    for c in campos:
+        if not form.get(c):
+            return f"Campo obrigatório: {c}"
     return None
 
+
 # ========================
-# NOME
+# DOC NAME
 # ========================
 def gerar_nome(dados):
     data = dados.get("{{DATA}}","")
@@ -54,17 +55,14 @@ def gerar_nome(dados):
     except:
         data_fmt = "0000"
 
-    if loja and loja.upper() == "ZARA":
-        base = local
-    else:
-        base = loja
-
-    base = (base or "arquivo").replace(" ","_")
+    base = loja or local or "arquivo"
+    base = base.replace(" ","_")
 
     return f"{base}_{data_fmt}"
 
+
 # ========================
-# HISTORICO
+# HISTÓRICO
 # ========================
 def salvar_historico(dados):
 
@@ -90,69 +88,53 @@ def salvar_historico(dados):
 
     df.to_excel(arquivo, index=False)
 
+
 # ========================
-# SUBSTITUIR CAMPOS
+# SUBSTITUIÇÃO
 # ========================
-def substituir_campos(doc,dados):
+def substituir_campos(doc, dados):
 
     for p in doc.paragraphs:
-        for k,v in dados.items():
+        for k, v in dados.items():
             if k in p.text:
                 for run in p.runs:
-                    run.text = run.text.replace(k,str(v or ""))
+                    run.text = run.text.replace(k, str(v or ""))
 
     for t in doc.tables:
         for r in t.rows:
             for c in r.cells:
                 for p in c.paragraphs:
-                    for k,v in dados.items():
+                    for k, v in dados.items():
                         if k in p.text:
                             for run in p.runs:
-                                run.text = run.text.replace(k,str(v or ""))
+                                run.text = run.text.replace(k, str(v or ""))
+
 
 # ========================
-# DOCX
+# DOC GENERATOR
 # ========================
-def gerar_doc(dados,fotos):
+def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
 
-    substituir_campos(doc,dados)
+    substituir_campos(doc, dados)
 
-    for i,p in enumerate(doc.paragraphs):
-        if "Validado com a Gerente" in p.text:
-
-            table = doc.add_table(rows=0,cols=2)
-
-            row = None
-            for idx,f in enumerate(fotos):
-                if idx % 2 == 0:
-                    row = table.add_row().cells
-
-                if os.path.exists(f):
-                    cell = row[idx % 2]
-                    run = cell.paragraphs[0].add_run()
-                    run.add_picture(f,width=Cm(5),height=Cm(8))
-
-            doc.element.body.insert(i,table._element)
-
-            if i + 1 < len(doc.paragraphs):
-                doc.paragraphs[i+1].insert_paragraph_before("")
-            else:
-                doc.add_paragraph("")
-
-            break
-
-    os.makedirs("temp",exist_ok=True)
+    os.makedirs("temp", exist_ok=True)
     path = "temp/saida.docx"
+
     doc.save(path)
 
     return path
 
+
 # ========================
-# API CONVERTAPI
+# PDF CONVERTER
 # ========================
 def converter_pdf(doc_path):
+
+    if not API_KEY:
+        raise Exception("API_KEY não configurada")
+
     with open(doc_path, "rb") as f:
         response = requests.post(
             "https://v2.convertapi.com/convert/docx/to/pdf",
@@ -161,101 +143,110 @@ def converter_pdf(doc_path):
         )
 
     result = response.json()
-
     pdf_url = result["Files"][0]["Url"]
-    pdf_path = doc_path.replace(".docx", ".pdf")
 
     pdf_bytes = requests.get(pdf_url).content
+
+    pdf_path = doc_path.replace(".docx", ".pdf")
 
     with open(pdf_path, "wb") as f:
         f.write(pdf_bytes)
 
     return pdf_path
 
+
 # ========================
-# AUX
+# DADOS
 # ========================
-def montar_dados(form,data_fmt):
+def montar_dados(form, data_fmt):
 
     inicio = form.get("inicio")
     fim = form.get("fim")
 
     return {
-        "{{PROTOCOLO}}":form.get("protocolo"),
-        "{{TITULO}}":form.get("titulo"),
-        "{{ATENDENTE}}":form.get("atendente"),
-        "{{LOJA}}":form.get("loja"),
-        "{{LOCAL}}":form.get("local"),
-        "{{TECNICO}}":form.get("tecnico"),
-        "{{DATA}}":data_fmt,
-        "{{HORARIO}}":f"{inicio} as {fim}",
-        "{{TEMPO}}":calcular_tempo(inicio,fim),
-        "{{GERENTE}}":form.get("gerente"),
-        "{{DESCRICAO}}":form.get("descricao"),
+        "{{PROTOCOLO}}": form.get("protocolo"),
+        "{{TITULO}}": form.get("titulo"),
+        "{{ATENDENTE}}": form.get("atendente"),
+        "{{LOJA}}": form.get("loja"),
+        "{{LOCAL}}": form.get("local"),
+        "{{TECNICO}}": form.get("tecnico"),
+        "{{DATA}}": data_fmt,
+        "{{HORARIO}}": f"{inicio} as {fim}",
+        "{{TEMPO}}": calcular_tempo(inicio, fim),
+        "{{GERENTE}}": form.get("gerente"),
+        "{{DESCRICAO}}": form.get("descricao"),
     }
 
-def salvar_fotos(request):
-    os.makedirs("temp",exist_ok=True)
 
-    fotos=[]
+def salvar_fotos(request):
+    os.makedirs("temp", exist_ok=True)
+
+    fotos = []
     for f in request.files.getlist("fotos"):
         if f.filename:
-            path=os.path.join("temp",f.filename)
+            path = os.path.join("temp", f.filename)
             f.save(path)
             fotos.append(path)
 
     return fotos
 
+
 # ========================
-# ROTAS
+# ROTAS (CORRIGIDAS)
 # ========================
 @app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route("/gerar",methods=["POST"])
+
+@app.route("/gerar", methods=["POST"])
 def gerar():
 
     erro = validar_campos(request.form)
     if erro:
-        return erro,400
+        return erro, 400
 
     data_raw = request.form.get("data")
-    data_fmt = datetime.strptime(data_raw,"%Y-%m-%d").strftime("%d/%m/%Y")
+    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
-    dados = montar_dados(request.form,data_fmt)
+    dados = montar_dados(request.form, data_fmt)
     fotos = salvar_fotos(request)
 
-    doc = gerar_doc(dados,fotos)
+    doc = gerar_doc(dados, fotos)
 
-    # ✅ SALVAR HISTORICO
     salvar_historico(dados)
 
     nome = gerar_nome(dados)
 
-    return send_file(doc,as_attachment=True,download_name=f"{nome}.docx")
-
-@app.route("/gerar-pdf", methods=["POST"])
-def gerar_pdf():
-    docx_path = gerar_docx()
-
-    result = convertapi.convert(
-        "pdf",
-        {"File": docx_path},
-        from_format="docx"
-    )
-
-    pdf_path = f"/tmp/arquivo.pdf"
-    result.file.save(pdf_path)
-
-    return send_file(
-        pdf_path,
-        as_attachment=True,
-        download_name="arquivo.pdf",
-        mimetype="application/pdf"
-    )
+    return send_file(doc, as_attachment=True, download_name=f"{nome}.docx")
 
 
+# ✔ AGORA EXISTE (RESOLVE O 404 DEFINITIVO)
+@app.route("/pdf", methods=["POST"])
+def pdf():
+
+    erro = validar_campos(request.form)
+    if erro:
+        return erro, 400
+
+    data_raw = request.form.get("data")
+    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+
+    dados = montar_dados(request.form, data_fmt)
+    fotos = salvar_fotos(request)
+
+    doc = gerar_doc(dados, fotos)
+
+    salvar_historico(dados)
+
+    pdf_path = converter_pdf(doc)
+
+    return send_file(pdf_path, as_attachment=True, download_name="RAT.pdf")
+
+
+# ========================
+# EXCEL
+# ========================
 @app.route("/excel")
 def excel():
 
@@ -271,23 +262,20 @@ def excel():
             ano, mes_num = mes.split("-")
 
             def filtro(data_str):
-                try:
-                    d = datetime.strptime(data_str,"%d/%m/%Y")
-                    return d.year == int(ano) and d.month == int(mes_num)
-                except:
-                    return False
+                d = datetime.strptime(data_str,"%d/%m/%Y")
+                return d.year == int(ano) and d.month == int(mes_num)
 
             df = df[df["Data"].apply(filtro)]
-
         except:
             return "Erro ao processar mês", 400
 
-    caminho = "temp/relatorio.xlsx"
     os.makedirs("temp", exist_ok=True)
+    path = "temp/relatorio.xlsx"
 
-    df.to_excel(caminho,index=False)
+    df.to_excel(path, index=False)
 
-    return send_file(caminho,as_attachment=True,download_name="relatorio.xlsx")
+    return send_file(path, as_attachment=True, download_name="relatorio.xlsx")
+
 
 # ========================
 # START
