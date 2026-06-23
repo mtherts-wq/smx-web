@@ -254,28 +254,36 @@ def gerar():
 
 
 @app.route("/pdf", methods=["POST"])
+@app.route("/pdf", methods=["POST"])
 def pdf():
 
     erro = validar_campos(request.form)
     if erro:
         return erro, 400
 
-    data_raw = request.form.get("data")
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+    try:
+        data_raw = request.form.get("data")
+        data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
 
-    dados = montar_dados(request.form, data_fmt)
-    fotos = salvar_fotos(request)
+        dados = montar_dados(request.form, data_fmt)
+        fotos = salvar_fotos(request)
 
-    doc = gerar_doc(dados, fotos)
+        doc = gerar_doc(dados, fotos)
 
-    salvar_historico(dados)
+        salvar_historico(dados)
 
-    pdf_path = converter_pdf(doc)
+        pdf_path = converter_pdf(doc)
 
-    nome = gerar_nome(dados)
+        nome = gerar_nome(dados)
 
-    return send_file(pdf_path, as_attachment=True, download_name=f"{nome}.pdf")
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name=f"{nome}.pdf"
+        )
 
+    except Exception as e:
+        return {"erro": str(e)}, 500
 
 # ========================
 # EXCEL

@@ -141,6 +141,15 @@ function getFormData(){
     return new FormData(document.getElementById("formRAT"));
 }
 
+function getFileNameFromHeader(res, fallback){
+    let disposition = res.headers.get("Content-Disposition");
+
+    if(!disposition) return fallback;
+
+    let match = disposition.match(/filename="?(.+)"?/);
+    return match ? match[1] : fallback;
+}
+
 async function gerarDOC(){
 
     if(!validar()) return;
@@ -155,17 +164,19 @@ async function gerarDOC(){
         return;
     }
 
+    let filename = getFileNameFromHeader(res, "RAT.docx");
+
     let blob = await res.blob();
-    let url = window.URL.createObjectURL(blob);
+    let url = URL.createObjectURL(blob);
 
     let a = document.createElement("a");
     a.href = url;
-    a.download = "RAT.docx";
+    a.download = filename;   // ✔ agora é dinâmico
     document.body.appendChild(a);
     a.click();
     a.remove();
 
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
 }
 
 async function gerarPDF(){
@@ -178,21 +189,25 @@ async function gerarPDF(){
     });
 
     if(!res.ok){
-        alert("Erro ao gerar PDF");
+        let err = await res.json().catch(()=>null);
+        console.log(err);
+        alert(err?.erro || "Erro ao gerar PDF");
         return;
     }
 
+    let filename = getFileNameFromHeader(res, "RAT.pdf");
+
     let blob = await res.blob();
-    let url = window.URL.createObjectURL(blob);
+    let url = URL.createObjectURL(blob);
 
     let a = document.createElement("a");
     a.href = url;
-    a.download = "RAT.pdf";
+    a.download = filename;   // ✔ agora respeita ZARA/LOJA + ddmm
     document.body.appendChild(a);
     a.click();
     a.remove();
 
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
 }
 
 </script>
