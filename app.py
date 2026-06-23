@@ -6,10 +6,10 @@ import os
 import pandas as pd
 import requests
 import time
+import subprocess
 
 app = Flask(__name__)
 
-API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiNmY0YWU3MzAyMjk0YTMzMTg5ZmNiMTUzYzg0Mjg0MjJhMjViNzgwYWZkMjFkN2FmMTliY2E1YjlmNjg5NjNiMzVkZWNjNjYzZWFiM2JhYzAiLCJpYXQiOjE3ODIxNjYwNDcuMjM2MzEyLCJuYmYiOjE3ODIxNjYwNDcuMjM2MzEzLCJleHAiOjQ5Mzc4Mzk2NDcuMjMxMzU3LCJzdWIiOiI3NjA2OTMyOSIsInNjb3BlcyI6WyJ0YXNrLnJlYWQiLCJ0YXNrLndyaXRlIl19.gXK-freAXtMNbA74Wd7NBBGdoaLXK_Mb36tv2HfAcB9He1tRk75JDU5cdl0NIzkcriAp1CINPbmNENTZGSPqh-cV4fw0DXz0SAimUVXiBp2a5edZ8XRp9Lv2fxuzTYR8Gnq9WT-How-ZNANU2jaVJDAFeRWsrw0eqC1g5ZXUOyAWQdi4vo9c1tlk2xGTrLnJbQ-zEdCEpelPYb9JaBvWr_n-jWi9hQ6_OEKLab9ktcvFfy3abi7Xlc58lSUjwSn7W2bqs8wPpMnCWqnL--fCmkI9QNwNLx8b6a24xKzyh3CBKGb7-1sZdDwOoVUMwMN13rczMwmgpcKRfp_u-HkvTsrVzzhj5B-a8QTUV0QHIeb7mils3hOhuK4vyHUw2QUGcsulNX0Vu_6xO5A2Wy-ZeZXNzcs8wdmORgshgqXVsQQaOog2KpDdIkeVG839G1b2Qx6sM4Wynou6oYZqETE14JIwjlNU04fERBzUHhAL59EEI6wq-P3xBKj6GoCAHfmYnjpAIAxQSohuWNREM4jeP_ZFaYOXvi-IdaxOmZ5oAgJwghe9c-1PCNKArMhKda8z7Zf42O7KQ4VBWjo2GlZjN-PIAzmK2rmaMvW8xNTDbHhTRHhwyYk9jKgCsHonGOtJ_PKaavA1lh18lcLXFjLg7b_P2YDkM41645VvmLS3hSs"
 
 # ========================
 # TEMPO
@@ -152,52 +152,16 @@ def gerar_doc(dados,fotos):
 # CLOUDCONVERT
 # ========================
 def converter_pdf(doc_path):
+    pdf_path = doc_path.replace(".docx", ".pdf")
 
-    response = requests.post(
-        "https://api.cloudconvert.com/v2/jobs",
-        headers={
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "tasks":{
-                "upload":{"operation":"import/upload"},
-                "convert":{"operation":"convert","input":"upload","output_format":"pdf"},
-                "export":{"operation":"export/url","input":"convert"}
-            }
-        }
-    ).json()
-
-    upload_task = next(t for t in response["data"]["tasks"] if t["name"]=="upload")
-
-    upload_url = upload_task["result"]["form"]["url"]
-    upload_params = upload_task["result"]["form"]["parameters"]
-
-    with open(doc_path,"rb") as f:
-        requests.post(upload_url,data=upload_params,files={"file":f})
-
-    job_id = response["data"]["id"]
-
-    while True:
-        job_status = requests.get(
-            f"https://api.cloudconvert.com/v2/jobs/{job_id}",
-            headers={"Authorization":f"Bearer {API_KEY}"}
-        ).json()
-
-        if job_status["data"]["status"]=="finished":
-            break
-
-        time.sleep(2)
-
-    export = next(t for t in job_status["data"]["tasks"] if t["name"]=="export")
-    file_url = export["result"]["files"][0]["url"]
-
-    pdf_path = doc_path.replace(".docx",".pdf")
-
-    pdf_bytes = requests.get(file_url).content
-
-    with open(pdf_path,"wb") as f:
-        f.write(pdf_bytes)
+    # Executa a conversão com LibreOffice
+    subprocess.run([
+        "libreoffice",
+        "--headless",
+        "--convert-to", "pdf",
+        "--outdir", os.path.dirname(doc_path),
+        doc_path
+    ], check=True)
 
     return pdf_path
 
@@ -322,5 +286,6 @@ def excel():
 # ========================
 # START
 # ========================
-if __name__=="__main__":
-    app.run(host="0.0.0.0",port=10000)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)
