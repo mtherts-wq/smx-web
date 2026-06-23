@@ -12,6 +12,14 @@ API_KEY = os.environ.get("API_KEY")
 
 
 # ========================
+# VALIDAÇÃO API KEY
+# ========================
+if not API_KEY:
+    print("⚠️ WARNING: API_KEY não configurada no ambiente (Render)")
+    print("O PDF não irá funcionar até configurar a variável API_KEY")
+
+
+# ========================
 # TEMPO
 # ========================
 def calcular_tempo(inicio, fim):
@@ -42,7 +50,7 @@ def validar_campos(form):
 
 
 # ========================
-# NOME CORRIGIDO (REGRA ZARA)
+# NOME CORRIGIDO
 # ========================
 def gerar_nome(dados):
 
@@ -58,7 +66,6 @@ def gerar_nome(dados):
 
     loja_upper = loja.upper()
 
-    # ✔ REGRA CORRIGIDA
     if loja_upper == "ZARA":
         base = local
     else:
@@ -98,7 +105,7 @@ def salvar_historico(dados):
 
 
 # ========================
-# SUBSTITUIÇÃO DE CAMPOS
+# SUBSTITUIÇÃO
 # ========================
 def substituir_campos(doc, dados):
 
@@ -119,7 +126,7 @@ def substituir_campos(doc, dados):
 
 
 # ========================
-# DOCX (FOTOS RESTAURADAS)
+# DOCX
 # ========================
 def gerar_doc(dados, fotos):
 
@@ -127,7 +134,6 @@ def gerar_doc(dados, fotos):
 
     substituir_campos(doc, dados)
 
-    # ✔ RESTAURAÇÃO DAS FOTOS (SEU ORIGINAL)
     for i, p in enumerate(doc.paragraphs):
         if "Validado com a Gerente" in p.text:
 
@@ -144,7 +150,6 @@ def gerar_doc(dados, fotos):
                     run.add_picture(f, width=Cm(5), height=Cm(8))
 
             doc.element.body.insert(i, table._element)
-
             break
 
     os.makedirs("temp", exist_ok=True)
@@ -155,31 +160,36 @@ def gerar_doc(dados, fotos):
 
 
 # ========================
-# PDF
+# PDF CONVERTER
 # ========================
 def converter_pdf(doc_path):
 
     if not API_KEY:
-        raise Exception("API_KEY não configurada")
+        raise Exception("API_KEY não configurada no Render")
 
-    with open(doc_path, "rb") as f:
-        response = requests.post(
-            "https://v2.convertapi.com/convert/docx/to/pdf",
-            params={"Secret": API_KEY},
-            files={"File": f}
-        )
+    try:
+        with open(doc_path, "rb") as f:
+            response = requests.post(
+                "https://v2.convertapi.com/convert/docx/to/pdf",
+                params={"Secret": API_KEY},
+                files={"File": f}
+            )
 
-    result = response.json()
-    pdf_url = result["Files"][0]["Url"]
+        response.raise_for_status()
+        result = response.json()
 
-    pdf_bytes = requests.get(pdf_url).content
+        pdf_url = result["Files"][0]["Url"]
+        pdf_bytes = requests.get(pdf_url).content
 
-    pdf_path = doc_path.replace(".docx", ".pdf")
+        pdf_path = doc_path.replace(".docx", ".pdf")
 
-    with open(pdf_path, "wb") as f:
-        f.write(pdf_bytes)
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_bytes)
 
-    return pdf_path
+        return pdf_path
+
+    except Exception as e:
+        raise Exception(f"Erro ConvertAPI: {str(e)}")
 
 
 # ========================
@@ -254,7 +264,6 @@ def gerar():
 
 
 @app.route("/pdf", methods=["POST"])
-@app.route("/pdf", methods=["POST"])
 def pdf():
 
     erro = validar_campos(request.form)
@@ -276,18 +285,12 @@ def pdf():
 
         nome = gerar_nome(dados)
 
-        return send_file(
-            pdf_path,
-            as_attachment=True,
-            download_name=f"{nome}.pdf"
-        )
+        return send_file(pdf_path, as_attachment=True, download_name=f"{nome}.pdf")
 
     except Exception as e:
         return {"erro": str(e)}, 500
 
-# ========================
-# EXCEL
-# ========================
+
 @app.route("/excel")
 def excel():
 
@@ -307,7 +310,6 @@ def excel():
                 return d.year == int(ano) and d.month == int(mes_num)
 
             df = df[df["Data"].apply(filtro)]
-
         except:
             return "Erro ao processar mês", 400
 
@@ -319,9 +321,6 @@ def excel():
     return send_file(path, as_attachment=True, download_name="relatorio.xlsx")
 
 
-# ========================
-# START
-# ========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
