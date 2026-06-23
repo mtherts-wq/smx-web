@@ -42,12 +42,13 @@ def validar_campos(form):
 
 
 # ========================
-# DOC NAME
+# NOME CORRIGIDO (REGRA ZARA)
 # ========================
 def gerar_nome(dados):
+
     data = dados.get("{{DATA}}","")
-    loja = dados.get("{{LOJA}}","")
-    local = dados.get("{{LOCAL}}","")
+    loja = (dados.get("{{LOJA}}") or "").strip()
+    local = (dados.get("{{LOCAL}}") or "").strip()
 
     try:
         dt = datetime.strptime(data,"%d/%m/%Y")
@@ -55,8 +56,15 @@ def gerar_nome(dados):
     except:
         data_fmt = "0000"
 
-    base = loja or local or "arquivo"
-    base = base.replace(" ","_")
+    loja_upper = loja.upper()
+
+    # ✔ REGRA CORRIGIDA
+    if loja_upper == "ZARA":
+        base = local
+    else:
+        base = loja
+
+    base = (base or "arquivo").replace(" ","_")
 
     return f"{base}_{data_fmt}"
 
@@ -90,7 +98,7 @@ def salvar_historico(dados):
 
 
 # ========================
-# SUBSTITUIÇÃO
+# SUBSTITUIÇÃO DE CAMPOS
 # ========================
 def substituir_campos(doc, dados):
 
@@ -111,7 +119,7 @@ def substituir_campos(doc, dados):
 
 
 # ========================
-# DOC GENERATOR
+# DOCX (FOTOS RESTAURADAS)
 # ========================
 def gerar_doc(dados, fotos):
 
@@ -119,16 +127,35 @@ def gerar_doc(dados, fotos):
 
     substituir_campos(doc, dados)
 
+    # ✔ RESTAURAÇÃO DAS FOTOS (SEU ORIGINAL)
+    for i, p in enumerate(doc.paragraphs):
+        if "Validado com a Gerente" in p.text:
+
+            table = doc.add_table(rows=0, cols=2)
+
+            for idx, f in enumerate(fotos):
+
+                if idx % 2 == 0:
+                    row = table.add_row().cells
+
+                if os.path.exists(f):
+                    cell = row[idx % 2]
+                    run = cell.paragraphs[0].add_run()
+                    run.add_picture(f, width=Cm(5), height=Cm(8))
+
+            doc.element.body.insert(i, table._element)
+
+            break
+
     os.makedirs("temp", exist_ok=True)
     path = "temp/saida.docx"
-
     doc.save(path)
 
     return path
 
 
 # ========================
-# PDF CONVERTER
+# PDF
 # ========================
 def converter_pdf(doc_path):
 
@@ -178,10 +205,15 @@ def montar_dados(form, data_fmt):
     }
 
 
+# ========================
+# FOTOS
+# ========================
 def salvar_fotos(request):
+
     os.makedirs("temp", exist_ok=True)
 
     fotos = []
+
     for f in request.files.getlist("fotos"):
         if f.filename:
             path = os.path.join("temp", f.filename)
@@ -192,7 +224,7 @@ def salvar_fotos(request):
 
 
 # ========================
-# ROTAS (CORRIGIDAS)
+# ROTAS
 # ========================
 @app.route("/")
 def home():
@@ -221,7 +253,6 @@ def gerar():
     return send_file(doc, as_attachment=True, download_name=f"{nome}.docx")
 
 
-# ✔ AGORA EXISTE (RESOLVE O 404 DEFINITIVO)
 @app.route("/pdf", methods=["POST"])
 def pdf():
 
@@ -241,7 +272,9 @@ def pdf():
 
     pdf_path = converter_pdf(doc)
 
-    return send_file(pdf_path, as_attachment=True, download_name="RAT.pdf")
+    nome = gerar_nome(dados)
+
+    return send_file(pdf_path, as_attachment=True, download_name=f"{nome}.pdf")
 
 
 # ========================
@@ -266,6 +299,7 @@ def excel():
                 return d.year == int(ano) and d.month == int(mes_num)
 
             df = df[df["Data"].apply(filtro)]
+
         except:
             return "Erro ao processar mês", 400
 
