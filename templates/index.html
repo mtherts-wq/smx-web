@@ -154,61 +154,98 @@ async function gerarDOC(){
 
     if(!validar()) return;
 
-    let res = await fetch("/gerar", {
-        method: "POST",
-        body: getFormData()
-    });
+    mostrarLoading();
 
-    if(!res.ok){
-        alert("Erro ao gerar DOC");
-        return;
+    try{
+        let res = await fetch("/gerar", {
+            method: "POST",
+            body: getFormData()
+        });
+
+        if(!res.ok){
+            alert("Erro ao gerar DOC");
+            esconderLoading();
+            return;
+        }
+
+        let filename = getFileNameFromHeader(res, "RAT.docx");
+
+        let blob = await res.blob();
+        let url = URL.createObjectURL(blob);
+
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(url);
+
+    } catch(e){
+        alert("Erro ao gerar documento");
     }
 
-    let filename = getFileNameFromHeader(res, "RAT.docx");
-
-    let blob = await res.blob();
-    let url = URL.createObjectURL(blob);
-
-    let a = document.createElement("a");
-    a.href = url;
-    a.download = filename;   // ✔ agora é dinâmico
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    URL.revokeObjectURL(url);
+    esconderLoading();
 }
 
 async function gerarPDF(){
 
     if(!validar()) return;
 
-    let res = await fetch("/pdf", {
-        method: "POST",
-        body: getFormData()
-    });
+    mostrarLoading();
 
-    if(!res.ok){
-        let err = await res.json().catch(()=>null);
-        console.log(err);
-        alert(err?.erro || "Erro ao gerar PDF");
-        return;
+    try{
+        let res = await fetch("/pdf", {
+            method: "POST",
+            body: getFormData()
+        });
+
+        if(!res.ok){
+            let err = await res.json().catch(()=>null);
+            alert(err?.erro || "Erro ao gerar PDF");
+            esconderLoading();
+            return;
+        }
+
+        let filename = getFileNameFromHeader(res, "RAT.pdf");
+
+        let blob = await res.blob();
+        let url = URL.createObjectURL(blob);
+
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(url);
+
+    } catch(e){
+        alert("Erro ao gerar PDF");
     }
 
-    let filename = getFileNameFromHeader(res, "RAT.pdf");
-
-    let blob = await res.blob();
-    let url = URL.createObjectURL(blob);
-
-    let a = document.createElement("a");
-    a.href = url;
-    a.download = filename;   // ✔ agora respeita ZARA/LOJA + ddmm
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    URL.revokeObjectURL(url);
+    esconderLoading();
 }
+
+function mostrarLoading(){
+    document.getElementById("loading").style.display = "flex";
+    desabilitarBotoes(true);
+}
+
+function esconderLoading(){
+    document.getElementById("loading").style.display = "none";
+    desabilitarBotoes(false);
+}
+
+function desabilitarBotoes(state){
+    document.querySelectorAll("button").forEach(btn=>{
+        btn.disabled = state;
+        btn.style.opacity = state ? "0.5" : "1";
+    });
+}
+
 
 </script>
 
@@ -277,5 +314,23 @@ async function gerarPDF(){
 
 </div>
 
+<div id="loading" style="
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.7);
+    color:white;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    z-index:9999;
+    font-size:18px;
+">
+    ⏳ Gerando PDF...<br>
+    Aguarde alguns segundos
+</div>
 </body>
 </html>
