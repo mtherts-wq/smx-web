@@ -5,18 +5,14 @@ from datetime import datetime
 import os
 import pandas as pd
 import requests
+import base64
 
 app = Flask(__name__)
 
-API_KEY = os.environ.get("API_KEY")
+PDFSHIFT_API_KEY = os.environ.get("PDFSHIFT_API_KEY")
 
-
-# ========================
-# VALIDAÇÃO API KEY
-# ========================
-if not API_KEY:
-    print("⚠️ WARNING: API_KEY não configurada no ambiente (Render)")
-    print("O PDF não irá funcionar até configurar a variável API_KEY")
+if not PDFSHIFT_API_KEY:
+    print("⚠️ PDFSHIFT_API_KEY não configurada no Render")
 
 
 # ========================
@@ -50,7 +46,7 @@ def validar_campos(form):
 
 
 # ========================
-# NOME CORRIGIDO
+# NOME (REGRA ZARA)
 # ========================
 def gerar_nome(dados):
 
@@ -64,15 +60,12 @@ def gerar_nome(dados):
     except:
         data_fmt = "0000"
 
-    loja_upper = loja.upper()
-
-    if loja_upper == "ZARA":
+    if loja.upper() == "ZARA":
         base = local
     else:
         base = loja
 
     base = (base or "arquivo").replace(" ","_")
-
     return f"{base}_{data_fmt}"
 
 
@@ -131,19 +124,15 @@ def substituir_campos(doc, dados):
 def gerar_doc(dados, fotos):
 
     doc = Document("MODELO_RAT.docx")
-
     substituir_campos(doc, dados)
 
     for i, p in enumerate(doc.paragraphs):
         if "Validado com a Gerente" in p.text:
-
             table = doc.add_table(rows=0, cols=2)
 
             for idx, f in enumerate(fotos):
-
                 if idx % 2 == 0:
                     row = table.add_row().cells
-
                 if os.path.exists(f):
                     cell = row[idx % 2]
                     run = cell.paragraphs[0].add_run()
@@ -160,43 +149,39 @@ def gerar_doc(dados, fotos):
 
 
 # ========================
-# PDF CONVERTER
+# PDF (PDFSHIFT)
 # ========================
 def converter_pdf(doc_path):
 
-    if not API_KEY:
-        raise Exception("API_KEY não configurada no Render")
+    if not PDFSHIFT_API_KEY:
+        raise Exception("PDFSHIFT_API_KEY não configurada")
 
     with open(doc_path, "rb") as f:
-        response = requests.post(
-            "https://v2.convertapi.com/convert/docx/to/pdf",
-            params={"Secret": API_KEY},
-            files={"File": f}
-        )
+        encoded = base64.b64encode(f.read()).decode("utf-8")
 
-    # 🔥 DEBUG IMPORTANTE
-    try:
-        result = response.json()
-    except Exception:
-        raise Exception(f"Resposta inválida da API: {response.text}")
+    response = requests.post(
+        "https://api.pdfshift.io/v3/convert/docx",
+        headers={
+            "Authorization": f"Bearer {PDFSHIFT_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "source": encoded,
+            "landscape": False,
+            "use_print": False
+        }
+    )
 
-    # 🔥 SE DER ERRO, MOSTRA O MOTIVO REAL
-    if "Files" not in result:
-        raise Exception(f"Erro ConvertAPI retorno inesperado: {result}")
-
-    pdf_url = result["Files"][0].get("Url")
-
-    if not pdf_url:
-        raise Exception(f"ConvertAPI não retornou URL: {result}")
-
-    pdf_bytes = requests.get(pdf_url).content
+    if response.status_code != 200:
+        raise Exception(f"Erro PDFShift: {response.text}")
 
     pdf_path = doc_path.replace(".docx", ".pdf")
 
     with open(pdf_path, "wb") as f:
-        f.write(pdf_bytes)
+        f.write(response.content)
 
     return pdf_path
+
 
 # ========================
 # DADOS
@@ -227,7 +212,6 @@ def montar_dados(form, data_fmt):
 def salvar_fotos(request):
 
     os.makedirs("temp", exist_ok=True)
-
     fotos = []
 
     for f in request.files.getlist("fotos"):
@@ -254,18 +238,17 @@ def gerar():
     if erro:
         return erro, 400
 
-    data_raw = request.form.get("data")
-    data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+    data_fmt = datetime.strptime(
+        request.form.get("data"), "%Y-%m-%d"
+    ).strftime("%d/%m/%Y")
 
     dados = montar_dados(request.form, data_fmt)
     fotos = salvar_fotos(request)
 
     doc = gerar_doc(dados, fotos)
-
     salvar_historico(dados)
 
     nome = gerar_nome(dados)
-
     return send_file(doc, as_attachment=True, download_name=f"{nome}.docx")
 
 
@@ -276,54 +259,34 @@ def pdf():
     if erro:
         return erro, 400
 
-    try:
-        data_raw = request.form.get("data")
-        data_fmt = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+    data_fmt = datetime.strptime(
+        request.form.get("data"), "%Y-%m-%d"
+    ).strftime("%d/%m/%Y")
 
-        dados = montar_dados(request.form, data_fmt)
-        fotos = salvar_fotos(request)
+    dados = montar_dados(request.form, data_fmt)
+    fotos = salvar_fotos(request)
 
-        doc = gerar_doc(dados, fotos)
+    doc = gerar_doc(dados, fotos)
+    salvar_historico(dados)
 
-        salvar_historico(dados)
+    pdf_path = converter_pdf(doc)
+    nome = gerar_nome(dados)
 
-        pdf_path = converter_pdf(doc)
-
-        nome = gerar_nome(dados)
-
-        return send_file(pdf_path, as_attachment=True, download_name=f"{nome}.pdf")
-
-    except Exception as e:
-        return {"erro": str(e)}, 500
+    return send_file(pdf_path, as_attachment=True, download_name=f"{nome}.pdf")
 
 
 @app.route("/excel")
 def excel():
-
-    mes = request.args.get("mes")
 
     if not os.path.exists("historico.xlsx"):
         return "Sem registros ainda", 400
 
     df = pd.read_excel("historico.xlsx")
 
-    if mes:
-        try:
-            ano, mes_num = mes.split("-")
-
-            def filtro(data_str):
-                d = datetime.strptime(data_str,"%d/%m/%Y")
-                return d.year == int(ano) and d.month == int(mes_num)
-
-            df = df[df["Data"].apply(filtro)]
-        except:
-            return "Erro ao processar mês", 400
-
     os.makedirs("temp", exist_ok=True)
     path = "temp/relatorio.xlsx"
 
     df.to_excel(path, index=False)
-
     return send_file(path, as_attachment=True, download_name="relatorio.xlsx")
 
 
