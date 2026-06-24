@@ -22,4 +22,4 @@ COPY . .
 EXPOSE 10000
 
 # Entrypoint
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT app:app"]
+CMD ["sh", "-c", "gunicorn --workers 3 --bind 0.0.0.0:$PORT app:app"]
