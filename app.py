@@ -13,11 +13,8 @@ app = Flask(__name__)
 # ========================
 # CONTROLE DE PROGRESSO
 # ========================
-# Armazenará um dicionário por job_id: {"progresso": int, "path": str, "nome": str}
 progresso = {}
 ARQUIVO_HISTORICO = "historico.xlsx"
-
-
 
 # ========================
 # TEMPO
@@ -97,14 +94,12 @@ def salvar_historico(dados):
 # SUBSTITUIÇÃO (TEXTO E TABELAS)
 # ========================
 def substituir_campos(doc, dados):
-    # Substitui nos parágrafos comuns
     for p in doc.paragraphs:
         for k, v in dados.items():
             if k in p.text:
                 for run in p.runs:
                     run.text = run.text.replace(k, str(v or ""))
 
-    # Substitui dentro de tabelas
     for t in doc.tables:
         for r in t.rows:
             for c in r.cells:
@@ -163,15 +158,18 @@ def converter_pdf(doc_path):
 # PROCESSAMENTO ASSÍNCRONO
 # ========================
 def processar_pdf(job_id, dados, fotos):
-
     try:
         progresso[job_id]["status"] = 30
 
-        doc = gerar_doc(dados, fotos)
+        # CORRIGIDO: Passando o job_id que estava faltando aqui!
+        doc = gerar_doc(job_id, dados, fotos)
 
         progresso[job_id]["status"] = 70
 
         pdf = converter_pdf(doc)
+
+        if os.path.exists(doc):
+            os.remove(doc)
 
         progresso[job_id]["status"] = "concluido"
         progresso[job_id]["path"] = pdf
@@ -180,53 +178,73 @@ def processar_pdf(job_id, dados, fotos):
         progresso[job_id]["status"] = f"erro: {str(e)}"
 
 # ========================
+# AUXILIAR DE EXTRAÇÃO
+# ========================
+def extrair_requisicao(req):
+    data_fmt = datetime.strptime(
+        req.form.get("data"), "%Y-%m-%d"
+    ).strftime("%d/%m/%Y")
+
+    inicio = req.form.get("inicio")
+    fim = req.form.get("fim")
+
+    dados = {
+        "{{PROTOCOLO}}": req.form.get("protocolo"),
+        "{{TITULO}}": req.form.get("titulo"),
+        "{{ATENDENTE}}": req.form.get("atendente"),
+        "{{LOJA}}": req.form.get("loja"),
+        "{{LOCAL}}": req.form.get("local"),
+        "{{TECNICO}}": req.form.get("tecnico"),
+        "{{DATA}}": data_fmt,
+        "{{HORARIO}}": f"{inicio} as {fim}",
+        "{{TEMPO}}": calcular_tempo(inicio, fim),
+        "{{GERENTE}}": req.form.get("gerente"),
+        "{{DESCRICAO}}": req.form.get("descricao"),
+    }
+
+    fotos = []
+    os.makedirs("temp", exist_ok=True)
+    for f in req.files.getlist("fotos"):
+        if f.filename:
+            nome_foto = f"{uuid.uuid4()}_{f.filename}"
+            path_foto = os.path.join("temp", nome_foto)
+            f.save(path_foto)
+            fotos.append(path_foto)
+
+    return dados, fotos
+
+# ========================
 # ROTAS
 # ========================
 @app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route("/pdf/start", methods=["POST"])
+# RESTAURADA: Rota de download direto de arquivos .docx que estava faltando
+@app.route("/gerar", methods=["POST"])
+def gerar_docx_direto():
+    erro = validar_campos(request.form)
+    if erro:
+        return erro, 400
 
+    dados, fotos = extrair_requisicao(request)
+    salvar_historico(dados)
+    
+    uid_gerar = str(uuid.uuid4())
+    doc_path = gerar_doc(uid_gerar, dados, fotos)
+    nome_final = gerar_nome(dados)
+
+    return send_file(doc_path, as_attachment=True, download_name=f"{nome_final}.docx")
+
+@app.route("/pdf/start", methods=["POST"])
 def iniciar_pdf():
     erro = validar_campos(request.form)
     if erro:
         return erro, 400
 
-    # Captura os dados no Contexto da Requisição ATUAL (evita quebrar na thread)
-    data_fmt = datetime.strptime(
-        request.form.get("data"), "%Y-%m-%d"
-    ).strftime("%d/%m/%Y")
+    dados, fotos = extrair_requisicao(request)
+    salvar_historico(dados)
 
-    inicio = request.form.get("inicio")
-    fim = request.form.get("fim")
-
-    dados = {
-        "{{PROTOCOLO}}": request.form.get("protocolo"),
-        "{{TITULO}}": request.form.get("titulo"),
-        "{{ATENDENTE}}": request.form.get("atendente"),
-        "{{LOJA}}": request.form.get("loja"),
-        "{{LOCAL}}": request.form.get("local"),
-        "{{TECNICO}}": request.form.get("tecnico"),
-        "{{DATA}}": data_fmt,
-        "{{HORARIO}}": f"{inicio} as {fim}",
-        "{{TEMPO}}": calcular_tempo(inicio, fim),
-        "{{GERENTE}}": request.form.get("gerente"),
-        "{{DESCRICAO}}": request.form.get("descricao"),
-    }
-
-    # Salva os arquivos de foto antes de despachar para a thread
-    fotos = []
-    os.makedirs("temp", exist_ok=True)
-    for f in request.files.getlist("fotos"):
-        if f.filename:
-            # Garante nome único para evitar colisões
-            nome_foto = f"{uuid.uuid4()}_{f.filename}"
-            path_foto = os.path.join("temp", nome_foto)
-            f.save(path_foto)
-            fotos.append(path_foto)
-
-    # Identificadores Únicos
     job_id = str(uuid.uuid4())
     nome_final_arquivo = gerar_nome(dados)
 
@@ -236,7 +254,6 @@ def iniciar_pdf():
         "nome": nome_final_arquivo
     }
 
-    # Despacha o processamento pesado em segundo plano com dados limpos
     threading.Thread(
         target=processar_pdf,
         args=(job_id, dados, fotos)
@@ -247,10 +264,8 @@ def iniciar_pdf():
 @app.route("/pdf/status/<job_id>")
 def status_pdf(job_id):
     job = progresso.get(job_id)
-
     if not job:
         return jsonify({"status": "não encontrado"}), 404
-
     return jsonify({"status": job["status"]})
 
 @app.route("/pdf/download/<job_id>")
@@ -264,27 +279,27 @@ def download_pdf(job_id):
 
     return send_file(path, as_attachment=True, download_name=nome_download)
 
-# ==================================================
-# COMO IMPLEMENTAR O RELATÓRIO MENSAL DO EXCEL
-# ==================================================
 @app.route("/excel")
 def excel():
     if not os.path.exists(ARQUIVO_HISTORICO):
         return "Sem registros no histórico ainda", 400
 
-    # Captura o parâmetro de mês enviado pela URL (ex: /excel?mes=06/2026)
-    # Se não for enviado, assume o mês e ano corrente baseado no dia de hoje
-    mes_filtro = request.args.get("mes")
-    if not mes_filtro:
+    mes_raw = request.args.get("mes") # Captura o valor vindo do HTML (Ex: '2026-06')
+    
+    if mes_raw:
+        try:
+            # Converte '2026-06' para '06/2026' para bater com o padrão salvo na planilha
+            mes_filtro = datetime.strptime(mes_raw, "%Y-%m").strftime("%m/%Y")
+        except:
+            mes_filtro = datetime.now().strftime("%m/%Y")
+    else:
         mes_filtro = datetime.now().strftime("%m/%Y")
 
     try:
         df = pd.read_excel(ARQUIVO_HISTORICO)
-        
-        # Garante que a coluna 'Data' seja interpretada como texto para o filtro
         df['Data'] = df['Data'].astype(str)
 
-        # Filtra as linhas onde o final da string corresponde a "MM/AAAA"
+        # Filtra registros que terminem com o mês escolhido (Ex: 06/2026)
         df_filtrado = df[df['Data'].str.endswith(mes_filtro)]
 
         if df_filtrado.empty:
@@ -293,7 +308,6 @@ def excel():
         os.makedirs("temp", exist_ok=True)
         path_relatorio = f"temp/relatorio_{mes_filtro.replace('/', '_')}.xlsx"
 
-        # Exporta preservando as exatas colunas que você listou
         df_filtrado.to_excel(path_relatorio, index=False)
         
         return send_file(
