@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, send_file
 from docx import Document
 from docx.shared import Cm
 from datetime import datetime
+import subprocess
 import os
 import pandas as pd
 import requests
@@ -151,37 +152,28 @@ def gerar_doc(dados, fotos):
 # ========================
 # PDF (PDFSHIFT)
 # ========================
+import subprocess
+
 def converter_pdf(doc_path):
-
-    if not PDFSHIFT_API_KEY:
-        raise Exception("PDFSHIFT_API_KEY não configurada")
-
-    with open(doc_path, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode("utf-8")
-
-    response = requests.post(
-        "https://api.pdfshift.io/v3/convert/docx",
-        headers={
-            "Authorization": f"Bearer {PDFSHIFT_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "source": encoded,
-            "landscape": False,
-            "use_print": False
-        }
-    )
-
-    if response.status_code != 200:
-        raise Exception(f"Erro PDFShift: {response.text}")
 
     pdf_path = doc_path.replace(".docx", ".pdf")
 
-    with open(pdf_path, "wb") as f:
-        f.write(response.content)
+    try:
+        subprocess.run([
+            "soffice",
+            "--headless",
+            "--convert-to", "pdf",
+            "--outdir", "temp",
+            doc_path
+        ], check=True)
+
+    except Exception as e:
+        raise Exception(f"Erro ao converter com LibreOffice: {str(e)}")
+
+    if not os.path.exists(pdf_path):
+        raise Exception("PDF não foi gerado")
 
     return pdf_path
-
 
 # ========================
 # DADOS
