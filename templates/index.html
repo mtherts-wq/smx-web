@@ -246,41 +246,55 @@ async function acompanharProgresso(job_id){
 
             // ✅ progresso numérico
             if(typeof data.status === "number"){
-
                 document.getElementById("bar").style.width = data.status + "%";
-                document.getElementById("statusText").innerText =
-                    "Progresso: " + data.status + "%";
+                document.getElementById("statusText").innerText = "Progresso: " + data.status + "%";
             }
 
-            // ✅ FINALIZADO
+            // ✅ FINALIZADO (CORRIGIDO AQUI)
             else if(data.status === "concluido"){
-
                 clearInterval(interval);
+                document.getElementById("statusText").innerText = "Baixando PDF...";
 
-                document.getElementById("statusText").innerText = "Finalizando...";
+                // Pequena folga de 300ms para o sistema respirar e liberamos o download nativo
+                setTimeout(async () => {
+                    try {
+                        let resDownload = await fetch(`/pdf/download/${job_id}`);
+                        if(!resDownload.ok) {
+                            alert("Erro ao baixar o PDF gerado");
+                            esconderLoading();
+                            return;
+                        }
+                        
+                        let filename = getFileNameFromHeader(resDownload, "RAT.pdf");
+                        let blob = await resDownload.blob();
+                        let url = URL.createObjectURL(blob);
 
-                setTimeout(() => {
-                    window.location.href = `/pdf/download/${job_id}`;
+                        // Cria um link temporário para forçar o DOWNLOAD real, sem abrir nova aba
+                        let a = document.createElement("a");
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+
+                        URL.revokeObjectURL(url);
+                    } catch(err) {
+                        alert("Erro no download do PDF");
+                    }
                     esconderLoading();
-                }, 500);
+                }, 300);
             }
 
             // ✅ ERRO
             else if(typeof data.status === "string" && data.status.startsWith("erro")){
-
                 clearInterval(interval);
-
                 alert(data.status);
-
                 esconderLoading();
             }
 
         } catch(e){
-
             clearInterval(interval);
-
             alert("Erro ao acompanhar progresso");
-
             esconderLoading();
         }
 
