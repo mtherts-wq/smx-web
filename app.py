@@ -71,7 +71,7 @@ def salvar_historico(dados):
         "Data": dados.get("{{DATA}}"),
         "Título": dados.get("{{TITULO}}"),
         "Loja": dados.get("{{LOJA}}"),
-        "Atendente": dados.get("{{ATENDENTE}}"),
+        "Atendente SMX": dados.get("{{ATENDENTE}}"),
         "Local": dados.get("{{LOCAL}}"),
         "Tempo": dados.get("{{TEMPO}}"),
         "Gerente": dados.get("{{GERENTE}}")

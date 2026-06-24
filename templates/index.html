@@ -199,7 +199,6 @@ async function gerarDOC(){
 ========================= */
 
 async function gerarPDF(){
-
     if(!validar()) return;
 
     mostrarLoading();
@@ -224,7 +223,10 @@ async function gerarPDF(){
             return;
         }
 
-        acompanharProgresso(data.job_id);
+        // Aguarda 1 segundo completo antes de começar a monitorar para o servidor respirar
+        setTimeout(() => {
+            acompanharProgresso(data.job_id);
+        }, 1000);
 
     } catch(e){
         alert("Erro ao conectar com servidor");
@@ -233,56 +235,52 @@ async function gerarPDF(){
 }
 
 /* =========================
-   PROGRESSO REAL
+   PROGRESSO REAL (BLINDADO)
 ========================= */
 
 async function acompanharProgresso(job_id){
-
     let interval = setInterval(async () => {
-
         try{
             let res = await fetch(`/pdf/status/${job_id}`);
             let data = await res.json();
 
-            // ✅ progresso numérico
+            // ✅ Progresso numérico
             if(typeof data.status === "number"){
                 document.getElementById("bar").style.width = data.status + "%";
                 document.getElementById("statusText").innerText = "Progresso: " + data.status + "%";
             }
 
-            // ✅ FINALIZADO (CORRIGIDO AQUI)
+            // ✅ FINALIZADO
             else if(data.status === "concluido"){
                 clearInterval(interval);
                 document.getElementById("statusText").innerText = "Baixando PDF...";
 
-                // Pequena folga de 300ms para o sistema respirar e liberamos o download nativo
+                // Damos um delay estratégico de 800ms para garantir que o Flask liberou o arquivo no disco
                 setTimeout(async () => {
                     try {
                         let resDownload = await fetch(`/pdf/download/${job_id}`);
+                        
                         if(!resDownload.ok) {
-                            alert("Erro ao baixar o PDF gerado");
-                            esconderLoading();
+                            // Se der erro, tenta uma segunda e última vez após 1 segundo
+                            setTimeout(async () => {
+                                let resRetry = await fetch(`/pdf/download/${job_id}`);
+                                if(!resRetry.ok){
+                                    alert("O PDF foi gerado, mas o servidor está demorando para liberar o download. Tente novamente.");
+                                    esconderLoading();
+                                    return;
+                                }
+                                processarBlobDownload(resRetry);
+                            }, 1000);
                             return;
                         }
                         
-                        let filename = getFileNameFromHeader(resDownload, "RAT.pdf");
-                        let blob = await resDownload.blob();
-                        let url = URL.createObjectURL(blob);
+                        processarBlobDownload(resDownload);
 
-                        // Cria um link temporário para forçar o DOWNLOAD real, sem abrir nova aba
-                        let a = document.createElement("a");
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-
-                        URL.revokeObjectURL(url);
                     } catch(err) {
                         alert("Erro no download do PDF");
+                        esconderLoading();
                     }
-                    esconderLoading();
-                }, 300);
+                }, 800);
             }
 
             // ✅ ERRO
@@ -297,8 +295,24 @@ async function acompanharProgresso(job_id){
             alert("Erro ao acompanhar progresso");
             esconderLoading();
         }
+    }, 1200); // Aumentado levemente o intervalo para evitar requisições encavaladas
+}
 
-    }, 1000);
+// Função auxiliar interna para realizar o download via Blob puro
+async function processarBlobDownload(responseOfech) {
+    let filename = getFileNameFromHeader(responseOfech, "RAT.pdf");
+    let blob = await responseOfech.blob();
+    let url = URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+    esconderLoading();
 }
 
 /* =========================
