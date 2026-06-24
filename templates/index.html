@@ -103,7 +103,7 @@ function validar(){
 
     function toMin(t){
         let [h,m] = t.split(":");
-        return h*60 + parseInt(m);
+        return (parseInt(h) * 60) + parseInt(m);
     }
 
     if(toMin(f) <= toMin(i)){
@@ -134,7 +134,7 @@ function gerarExcel(){
 }
 
 /* =========================
-   AJAX DOWNLOAD (NOVO)
+   UTIL
 ========================= */
 
 function getFormData(){
@@ -149,6 +149,10 @@ function getFileNameFromHeader(res, fallback){
     let match = disposition.match(/filename="?(.+)"?/);
     return match ? match[1] : fallback;
 }
+
+/* =========================
+   DOC
+========================= */
 
 async function gerarDOC(){
 
@@ -176,6 +180,7 @@ async function gerarDOC(){
         let a = document.createElement("a");
         a.href = url;
         a.download = filename;
+
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -189,54 +194,113 @@ async function gerarDOC(){
     esconderLoading();
 }
 
+/* =========================
+   PDF COM PROGRESSO REAL
+========================= */
+
 async function gerarPDF(){
 
     if(!validar()) return;
 
-    document.getElementById("loading").style.display = "flex";
+    mostrarLoading();
 
-    let start = await fetch("/pdf/start", {
-        method: "POST",
-        body: getFormData()
-    });
+    try{
+        let res = await fetch("/pdf/start", {
+            method: "POST",
+            body: getFormData()
+        });
 
-    let data = await start.json();
+        if(!res.ok){
+            alert("Erro ao iniciar PDF");
+            esconderLoading();
+            return;
+        }
 
-    acompanharProgresso(data.job_id);
+        let data = await res.json();
+
+        if(!data.job_id){
+            alert("Erro ao iniciar processamento");
+            esconderLoading();
+            return;
+        }
+
+        acompanharProgresso(data.job_id);
+
+    } catch(e){
+        alert("Erro ao conectar com servidor");
+        esconderLoading();
+    }
 }
+
+/* =========================
+   PROGRESSO REAL
+========================= */
 
 async function acompanharProgresso(job_id){
 
     let interval = setInterval(async () => {
 
-        let res = await fetch(`/pdf/status/${job_id}`);
-        let data = await res.json();
+        try{
+            let res = await fetch(`/pdf/status/${job_id}`);
+            let data = await res.json();
 
-        if(typeof data.status === "number"){
+            // ✅ progresso numérico
+            if(typeof data.status === "number"){
 
-            document.getElementById("bar").style.width = data.status + "%";
-            document.getElementById("statusText").innerText = "Progresso: " + data.status + "%";
+                document.getElementById("bar").style.width = data.status + "%";
+                document.getElementById("statusText").innerText =
+                    "Progresso: " + data.status + "%";
+            }
 
-        } else {
+            // ✅ FINALIZADO
+            else if(data.status === "concluido"){
+
+                clearInterval(interval);
+
+                document.getElementById("statusText").innerText = "Finalizando...";
+
+                setTimeout(() => {
+                    window.location.href = `/pdf/download/${job_id}`;
+                    esconderLoading();
+                }, 500);
+            }
+
+            // ✅ ERRO
+            else if(typeof data.status === "string" && data.status.startsWith("erro")){
+
+                clearInterval(interval);
+
+                alert(data.status);
+
+                esconderLoading();
+            }
+
+        } catch(e){
 
             clearInterval(interval);
 
-            if(data.status.startsWith("erro")){
-                alert(data.status);
-                document.getElementById("loading").style.display = "none";
-                return;
-            }
+            alert("Erro ao acompanhar progresso");
 
-            window.location.href = `/pdf/download/${job_id}`;
-            document.getElementById("loading").style.display = "none";
+            esconderLoading();
         }
 
     }, 1000);
 }
 
+/* =========================
+   LOADING UI
+========================= */
+
 function mostrarLoading(){
     document.getElementById("loading").style.display = "flex";
     desabilitarBotoes(true);
+
+    // reset visual
+    let bar = document.getElementById("bar");
+    if(bar) bar.style.width = "0%";
+
+    let text = document.getElementById("statusText");
+    if(text) text.innerText = "Iniciando...";
 }
 
 function esconderLoading(){
@@ -251,8 +315,8 @@ function desabilitarBotoes(state){
     });
 }
 
-
 </script>
+
 
 </head>
 

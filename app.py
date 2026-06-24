@@ -17,6 +17,8 @@ app = Flask(__name__)
 progresso = {}
 ARQUIVO_HISTORICO = "historico.xlsx"
 
+
+
 # ========================
 # TEMPO
 # ========================
@@ -161,27 +163,18 @@ def converter_pdf(doc_path):
 # PROCESSAMENTO ASSÍNCRONO
 # ========================
 def processar_pdf(job_id, dados, fotos):
+
     try:
-        progresso[job_id]["status"] = 30  # Início do processamento interno
+        progresso[job_id]["status"] = 30
 
-        # 1. Salva no histórico do Excel
-        salvar_historico(dados)
-        progresso[job_id]["status"] = 50
+        doc = gerar_doc(dados, fotos)
 
-        # 2. Gera o arquivo .docx customizado
-        doc_path = gerar_doc(job_id, dados, fotos)
         progresso[job_id]["status"] = 70
 
-        # 3. Converte para PDF usando LibreOffice
-        pdf_path = converter_pdf(doc_path)
+        pdf = converter_pdf(doc)
 
-        # Remove o arquivo .docx temporário para economizar espaço
-        if os.path.exists(doc_path):
-            os.remove(doc_path)
-
-        # 4. Finaliza com sucesso guardando o caminho final
         progresso[job_id]["status"] = "concluido"
-        progresso[job_id]["path"] = pdf_path
+        progresso[job_id]["path"] = pdf
 
     except Exception as e:
         progresso[job_id]["status"] = f"erro: {str(e)}"
@@ -194,6 +187,7 @@ def home():
     return render_template("index.html")
 
 @app.route("/pdf/start", methods=["POST"])
+
 def iniciar_pdf():
     erro = validar_campos(request.form)
     if erro:
@@ -253,8 +247,10 @@ def iniciar_pdf():
 @app.route("/pdf/status/<job_id>")
 def status_pdf(job_id):
     job = progresso.get(job_id)
+
     if not job:
         return jsonify({"status": "não encontrado"}), 404
+
     return jsonify({"status": job["status"]})
 
 @app.route("/pdf/download/<job_id>")
